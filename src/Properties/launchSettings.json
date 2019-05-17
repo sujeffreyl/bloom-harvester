@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "BloomHarvester": {
+      "commandName": "Project",
+      "commandLineArgs": "harvestAll debug"
+    }
+  }
+}

@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.28010.2036
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BloomHarvester", "src\BloomHarvester.csproj", "{1F8E47A5-410C-4DE4-9A8D-E36F19A448FA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BloomHarvester", "src\\BloomHarvester.csproj", "{D736B181-F56B-4F6E-A62F-3305ADACBB4D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,10 +11,10 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{1F8E47A5-410C-4DE4-9A8D-E36F19A448FA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1F8E47A5-410C-4DE4-9A8D-E36F19A448FA}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1F8E47A5-410C-4DE4-9A8D-E36F19A448FA}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1F8E47A5-410C-4DE4-9A8D-E36F19A448FA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D736B181-F56B-4F6E-A62F-3305ADACBB4D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D736B181-F56B-4F6E-A62F-3305ADACBB4D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D736B181-F56B-4F6E-A62F-3305ADACBB4D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D736B181-F56B-4F6E-A62F-3305ADACBB4D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

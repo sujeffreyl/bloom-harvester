@@ -5,6 +5,12 @@ This will be a process that can download books stored in Bloom Library and then 
 ## Development
 Just open BloomHarvester.sln in Visual Studio
 If you want to view the logs or status in Azure Portal, you will obviously also need access to the specified resources.
+## Setting Environment variables for runtime
+* You will need to set some or all of the following Environment variables to store some keys:
+** BloomHarvesterAzureAppInsightsKey{Prod|Test|Dev}
+*** Initially, you can contact jeffrey_su@sil.org for the keys. Later on, you should ask alex_crum@sil.org to be added to the Azure instance, and then you can go to the Azure Portal, find the dev-harvestAppInsights/test-harvestAppInsights/harvestAppInsights resource, and copy the Instrumentation Key from there.
+** BloomHarvesterParseAppId{Prod|Test|Dev}
+*** You can find this from Parse DB dashboard. Or contact andrew_polk@sil.org.
 ## Azure
 ### Searching for specific log text
 1. portal.azure.com

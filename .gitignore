@@ -1,4 +1,5 @@
 src/Bloom.suo
+lib/dotnet/*
 *.user
 *.orig
 output/

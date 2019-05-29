@@ -10,10 +10,11 @@ namespace BloomHarvester
 		Default,
 		Dev,
 		Test,
-		Prod
+		Prod,
+		Local
 	}
 
-	public class EnvironmentUtils
+	internal class EnvironmentUtils
 	{
 		/// <summary>
 		/// Returns a non-zero (aka non-Default) value of Environment to use, based on the higher-precedence value and the fallback value.
@@ -21,7 +22,7 @@ namespace BloomHarvester
 		/// <param name="resourceEnv">The value with higher precedence</param>
 		/// <param name="fallbackEnv">The value to use if the higher precedence is not set to a non-Default value</param>
 		/// <returns></returns>
-		public static EnvironmentSetting GetEnvOrFallback(EnvironmentSetting resourceEnv, EnvironmentSetting fallbackEnv)
+		internal static EnvironmentSetting GetEnvOrFallback(EnvironmentSetting resourceEnv, EnvironmentSetting fallbackEnv)
 		{
 			EnvironmentSetting parsedEnv = resourceEnv;
 

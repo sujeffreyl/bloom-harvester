@@ -153,10 +153,10 @@ namespace BloomHarvester.Parse
 		/// <param name="json">The JSON of the object to update. It doesn't need to be the full object, just of the fields to update</param>
 		/// <exception>Throws an application exception if the request fails</exception>
 		/// <returns>The response after executing the request</returns>
-		internal IRestResponse UpdateObject(string className, string updateJson)
+		internal IRestResponse UpdateObject(string className, string objectId, string updateJson)
 		{
 			EnsureLogIn();
-			var request = MakeRequest($"classes/{className}", Method.PUT);
+			var request = MakeRequest($"classes/{className}/{objectId}", Method.PUT);
 			AddJsonToRequest(request, updateJson);
 
 			var response = _client.Execute(request);
@@ -315,11 +315,26 @@ namespace BloomHarvester.Parse
 			IEnumerable<Book> results = GetAllResults<Book>(request);
 			return results;
 		}
+		
+		/// <summary>
+		/// Gets all rows from the Parse "books" class/table that contain warnings
+		/// </summary>
+		internal IEnumerable<Book> GetBooksWithWarnings()
+		{
+			var request = new RestRequest("classes/books", Method.GET);
+			SetCommonHeaders(request);
+
+			// TODO: Debug why this doesn't work
+			//request.AddParameter("where", "{\"warnings\":{\"$ne\":\"[]\"}");
+
+			IEnumerable<Book> results = GetAllResults<Book>(request);
+			return results;
+		}
 
 		/// <summary>
-		/// // Gets all rows from the Parse "books" class/table
+		/// Gets all rows from the Parse "publishedBooks" class/table
 		/// </summary>
-		internal IEnumerable<PublishedBook> GetPublishedBooksWithWarnings()
+		internal IEnumerable<PublishedBook> GetPublishedBooks()
 		{
 			var request = new RestRequest("classes/publishedBooks", Method.GET);
 			SetCommonHeaders(request);

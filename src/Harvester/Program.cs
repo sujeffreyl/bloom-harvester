@@ -15,6 +15,10 @@ namespace BloomHarvester
 	class Program
 	{
 		// Command line arguments sample: "harvestAll --environment=dev --parseDBEnvironment=prod"
+		//
+		// Some presets that you might copy and paste in:
+		// harvestAll --environment=dev --parseDBEnvironment=dev --suppressLogs --count=2
+		// harvestWarnings --environment=dev --parseDBEnvironment=local --suppressLogs
 		public static void Main(string[] args)
 		{
 			// See https://github.com/commandlineparser/commandline for documentation about CommandLine.Parser

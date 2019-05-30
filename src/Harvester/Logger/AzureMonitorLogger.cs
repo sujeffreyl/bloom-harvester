@@ -16,7 +16,7 @@ namespace BloomHarvester.Logger
 	{
 		private TelemetryClient _telemetry = new TelemetryClient();
 
-		public AzureMonitorLogger(EnvironmentSetting environment)
+		public AzureMonitorLogger(EnvironmentSetting environment, string harvesterId)
 		{
 			// Get the Instrumentation Key for Azure from an environment variable.
 			string environmentVarName = "BloomHarvesterAzureAppInsightsKeyDev";
@@ -35,7 +35,7 @@ namespace BloomHarvester.Logger
 
 			Microsoft.ApplicationInsights.Extensibility.TelemetryConfiguration.Active.InstrumentationKey = instrumentationKey;
 
-			_telemetry.Context.User.Id = "BloomHarvester";
+			_telemetry.Context.User.Id = "BloomHarvester " + harvesterId;
 			_telemetry.Context.Session.Id = Guid.NewGuid().ToString();
 			_telemetry.Context.Device.OperatingSystem = Environment.OSVersion.ToString();
 		}

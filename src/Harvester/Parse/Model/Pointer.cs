@@ -9,36 +9,33 @@ namespace BloomHarvester.Parse.Model
 	[JsonObject]
 	public class Pointer<T> where T : ParseObject
 	{
-		[JsonProperty("__type")]
-		public string Type;
+		[JsonProperty(Order=1)]
+		public string __type = "Pointer";
 
-		[JsonProperty("className")]
+		[JsonProperty("className", Order=2)]
 		public string ClassName;
 
-		[JsonProperty("objectId")]
+		[JsonProperty("objectId", Order=3)]
 		public string ObjectId;
 
 		[JsonIgnore]
 		public T Value { get; set; }
 
-		public Pointer()
-		{
-
-		}
-
 		public Pointer(T value)
 		{
+			this.ClassName = value?.GetParseClassName() ?? "";
+			this.ObjectId = value?.ObjectId;
 			this.Value = value;
 		}
 
-		internal string GetJson()
+		internal string ToJson()
 		{
 			if (this.Value == null)
 			{
 				return "{}";
 			}
-			
-			return "{ \"__type\": \"Pointer\", \"className\": \"books\", \"objectId\": \"" + this.Value.ObjectId + "\" }"; ;
+
+			return "{" + $"\"__type\":\"{__type}\",\"className\":\"{ClassName}\",\"objectId\":\"{ObjectId}\"" + "}";
 		}
 	}
 }

@@ -16,11 +16,15 @@ namespace BloomHarvester
 	{
 		protected IMonitorLogger _logger;
 		private ParseClient _parseClient;
-
+		
 		internal bool IsDebug { get; set; }
+
+		public string Identifier { get; set; }
 
 		public Harvester(HarvesterCommonOptions options)
 		{
+			this.Identifier = Environment.MachineName;
+
 			if (options.SuppressLogs)
 			{
 				_logger = new ConsoleLogger();
@@ -28,7 +32,7 @@ namespace BloomHarvester
 			else
 			{
 				EnvironmentSetting azureMonitorEnvironment = EnvironmentUtils.GetEnvOrFallback(options.LogEnvironment, options.Environment);
-				_logger = new AzureMonitorLogger(azureMonitorEnvironment);
+				_logger = new AzureMonitorLogger(azureMonitorEnvironment, this.Identifier);
 			}
 
 			EnvironmentSetting parseDBEnvironment = EnvironmentUtils.GetEnvOrFallback(options.ParseDBEnvironment, options.Environment);
@@ -61,7 +65,12 @@ namespace BloomHarvester
 			}
 		}
 
-		// Public interface should use RunHarvestAll() function instead. (So that we can guarantee that the class instance is properly disposed).
+		/// <summary>
+		/// Process all rows in the books table
+		/// Public interface should use RunHarvestAll() function instead. (So that we can guarantee that the class instance is properly disposed).
+		/// </summary>
+		/// 
+		/// <param name="maxBooksToProcess"></param>
 		private void HarvestAll(int maxBooksToProcess = -1)
 		{
 			_logger.TrackEvent("HarvestAll Start");
@@ -98,41 +107,47 @@ namespace BloomHarvester
 				Console.Out.WriteLine(message);
 				_logger.LogVerbose(message);
 
+				var initialUpdates = new UpdateOperation();
+				initialUpdates.UpdateField(Book.kHarvestStateField, Book.HarvestState.InProgress.ToString());
+				initialUpdates.UpdateField(Book.kHarvesterIdField, this.Identifier);
+
+				var startTime = new Parse.Model.Date(DateTime.UtcNow);
+				initialUpdates.UpdateField("harvestStartedAt", startTime.ToJson());
+
+				_parseClient.UpdateObject(book.GetParseClassName(), book.ObjectId, initialUpdates.ToJson());
+
+				// Process the book
+				var finalUpdates = new UpdateOperation();
 				var warnings = FindBookWarnings(book);
+				finalUpdates.UpdateField(Book.kWarningsField, Book.ToJson(warnings));
 
-				string pBookId = _parseClient.GetPublishedBookByBookId(book.ObjectId);
-				if (pBookId != null)
-				{
-					// REVIEW: DELETE vs. UPDATE?
-					// The spec says to delete then create
-					// Pros: This is easier to code up
-					// Cons:
-					//   The objectId will change
-					//   * Not sure, but potentially that could make it more annoying to debug or communicate since we'll have to look up new objectIds all the time.
-					//   * If some other table has a foreign key on publishedBooks.objectId, it will be really annoying because we need to update multiple places.
-					//   *   (Quite possibly annoying enough that we would preclude the possibility of ever having a foreign key on this?)
-					//   * Created Time is less informative
+				// ENHANCE: Do more processing here
 
-					// We're going to overwrite any existing entries, so delete it if necessary
-
-					// ENHANCE: Maybe we should delete all rows that match the book? Even though it's not SUPPOSED to happen, the table could get messed up.
-					_parseClient.RequestDeleteObject("publishedBooks", pBookId);
-				}
-
-				PublishedBook publishedBook = new PublishedBook()
-				{
-					BookValue = book,
-					Warnings = warnings
-				};
-
-				string json = publishedBook.GetJson();
-				_parseClient.RequestCreateObject("publishedBooks", json);
+				// Write the updates
+				finalUpdates.UpdateField(Book.kHarvestStateField, Book.HarvestState.Done.ToString());
+				_parseClient.UpdateObject(book.GetParseClassName(), book.ObjectId, finalUpdates.ToJson());
 
 				_logger.TrackEvent("ProcessOneBook End - Success");
 			}
 			catch (Exception e)
 			{
 				YouTrackIssueConnector.SubmitToYouTrack(e, $"Unhandled exception thrown while processing book \"{book.BaseUrl}\"");
+
+				// Attempt to write to Parse that processing failed
+				if (!String.IsNullOrEmpty(book?.ObjectId))
+				{
+					try
+					{
+						var onErrorUpdates = new UpdateOperation();
+						onErrorUpdates.UpdateField(Book.kHarvestStateField, $"\"{Book.HarvestState.Failed.ToString()}\"");
+						onErrorUpdates.UpdateField(Book.kHarvesterIdField, this.Identifier);
+						_parseClient.UpdateObject(book.GetParseClassName(), book.ObjectId, onErrorUpdates.ToJson());
+					}
+					catch (Exception)
+					{
+						// If it fails, just let it be and throw the first exception rather than the nested exception.
+					}
+				}
 				throw;
 			}
 		}
@@ -153,7 +168,7 @@ namespace BloomHarvester
 
 			if (String.IsNullOrWhiteSpace(book.BaseUrl))
 			{
-				warnings.Add("Invalid baseUrl");
+				warnings.Add("Missing baseUrl");
 			}
 
 			// ENHANCE: Add the real implementation one day, when we have a spec for what warnings we might actually want
@@ -167,13 +182,13 @@ namespace BloomHarvester
 
 		private void HarvestWarnings()
 		{
-			var publishedBooks = _parseClient.GetPublishedBooksWithWarnings();
+			var booksWithWarnings = _parseClient.GetBooksWithWarnings();
 
 			// ENHANCE: Currently this is just a dummy implementation to test that we can walk through it and check
 			//   One day we might actually want to re-process these if there is a code minor version update or something
-			foreach (var pBook in publishedBooks)
+			foreach (var book in booksWithWarnings)
 			{
-				string message = $"{pBook.BookPointer?.ObjectId ?? ""}: {pBook.Warnings.Count} warnings.";
+				string message = $"{book.ObjectId ?? ""} ({book.BaseUrl}): {book.Warnings.Count} warnings.";
 				Console.Out.WriteLine(message);
 			}
 		}

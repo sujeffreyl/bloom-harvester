@@ -6,6 +6,8 @@ using System.Text;
 
 namespace BloomHarvester.Parse.Model
 {
+	// TODO: Can probably deprecate this class if we decide not to use it.
+
 	[JsonObject]
 	public class PublishedBook : ParseObject
 	{
@@ -15,7 +17,7 @@ namespace BloomHarvester.Parse.Model
 
 		// This property is a shorthand to set BookPointer's value.
 		[JsonIgnore]
-		internal Book BookValue
+		internal Book Book
 		{
 			get
 			{
@@ -44,12 +46,12 @@ namespace BloomHarvester.Parse.Model
 			return "publishedBooks";
 		}
 
-		internal string GetJson()
+		internal override string ToJson()
 		{
 			string pointerJson = "{}";
 			if (this.BookPointer != null)
 			{
-				pointerJson = this.BookPointer.GetJson();
+				pointerJson = this.BookPointer.ToJson();
 			}
 
 			string warningsJson = "[]";

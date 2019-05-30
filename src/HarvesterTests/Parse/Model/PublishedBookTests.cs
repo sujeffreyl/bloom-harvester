@@ -14,7 +14,7 @@ namespace BloomHarvesterTests.Parse.Model
 		{
 			var obj = new PublishedBook();
 
-			string json = obj.GetJson();
+			string json = obj.ToJson();
 
 			string expectedJson = "{ \"book\": {}, \"warnings\": [] }";
 			Assert.AreEqual(expectedJson, json);
@@ -28,11 +28,11 @@ namespace BloomHarvesterTests.Parse.Model
 			{
 				ObjectId = "123"
 			};
-			obj.BookValue = book;
+			obj.Book = book;
 
-			string json = obj.GetJson();
+			string json = obj.ToJson();
 
-			string expectedJson = "{ \"book\": { \"__type\": \"Pointer\", \"className\": \"books\", \"objectId\": \"123\" }, \"warnings\": [] }";
+			string expectedJson = "{ \"book\": {\"__type\":\"Pointer\",\"className\":\"books\",\"objectId\":\"123\"}, \"warnings\": [] }";
 			Assert.AreEqual(expectedJson, json);
 		}
 
@@ -44,16 +44,16 @@ namespace BloomHarvesterTests.Parse.Model
 			{
 				ObjectId = "123",
 			};
-			obj.BookValue = book;
+			obj.Book = book;
 			obj.Warnings = new List<string>
 			{
 				"warning1",
 				"warning2"
 			};
 
-			string json = obj.GetJson();
+			string json = obj.ToJson();
 
-			string expectedJson = "{ \"book\": { \"__type\": \"Pointer\", \"className\": \"books\", \"objectId\": \"123\" }, \"warnings\": [\"warning1\", \"warning2\"] }";
+			string expectedJson = "{ \"book\": {\"__type\":\"Pointer\",\"className\":\"books\",\"objectId\":\"123\"}, \"warnings\": [\"warning1\", \"warning2\"] }";
 			Assert.AreEqual(expectedJson, json);
 		}
 	}

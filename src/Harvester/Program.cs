@@ -1,10 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using BloomHarvester.WebLibraryIntegration;
 using CommandLine;
+
+[assembly: InternalsVisibleTo("BloomHarvesterTests")]
 
 namespace BloomHarvester
 {
@@ -12,6 +15,10 @@ namespace BloomHarvester
 	class Program
 	{
 		// Command line arguments sample: "harvestAll --environment=dev --parseDBEnvironment=prod"
+		//
+		// Some presets that you might copy and paste in:
+		// harvestAll --environment=dev --parseDBEnvironment=dev --suppressLogs --count=2
+		// harvestWarnings --environment=dev --parseDBEnvironment=local --suppressLogs
 		public static void Main(string[] args)
 		{
 			// See https://github.com/commandlineparser/commandline for documentation about CommandLine.Parser
@@ -26,10 +33,14 @@ namespace BloomHarvester
 
 			try
 			{
-				parser.ParseArguments<HarvestAllOptions, HarvestHighPriorityOptions, HarvestLowPriorityOptions>(args)
+				parser.ParseArguments<HarvestAllOptions, HarvestHighPriorityOptions, HarvestLowPriorityOptions, HarvestWarningsOptions>(args)
 					.WithParsed<HarvestAllOptions>(options =>
 					{
 						Harvester.RunHarvestAll(options);
+					})
+					.WithParsed<HarvestWarningsOptions>(options =>
+					{
+						Harvester.RunHarvestWarnings(options);
 					})
 					// TODO: Replace placeholders
 					.WithParsed<HarvestHighPriorityOptions>(options => { throw new NotImplementedException("HarvestHighPriority"); })
@@ -59,6 +70,7 @@ namespace BloomHarvester
 		[Option("logEnvironment", Required = false, Default = EnvironmentSetting.Default, HelpText = "Sets the environment to read/write from the logging resource. Valid values are Default, Dev, Test, or Prod. If specified (to non-Default), takes precedence over the general 'environment' option.")]
 		public EnvironmentSetting LogEnvironment { get; set; }
 
+		// ENHANCE: Perhaps this parameter should also suppress creating YouTrack issues?
 		[Option("suppressLogs", Required = false, Default = false, HelpText = "If true, will prevent log messages from being logged to the log environment (which may incur fees). Will write those logs to Standard Error instead.")]
 		public bool SuppressLogs { get; set; }
 
@@ -94,5 +106,10 @@ namespace BloomHarvester
 	public class HarvestLowPriorityOptions : HarvesterCommonOptions
 	{
 		// PLACEHOLDER
+	}
+
+	[Verb("harvestWarnings", HelpText = "Re-run Harvester on items that currently have warnings.")]
+	public class HarvestWarningsOptions : HarvesterCommonOptions
+	{
 	}
 }

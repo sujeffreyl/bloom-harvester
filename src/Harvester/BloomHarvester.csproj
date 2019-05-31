@@ -23,7 +23,7 @@
 
   <ItemGroup>
     <Reference Include="YouTrackSharp">
-      <HintPath>..\lib\dotnet\YouTrackSharp.dll</HintPath>
+      <HintPath>..\..\lib\dotnet\YouTrackSharp.dll</HintPath>
     </Reference>
   </ItemGroup>
 

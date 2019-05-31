@@ -10,12 +10,12 @@ using YouTrackSharp.Issues;
 
 namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put in Bloom.web or Bloom.Communication instead?
 {
-	public class YouTrackIssueConnector
+	internal class YouTrackIssueConnector
 	{
 		private static readonly string _issueTrackingBackend = "issues.bloomlibrary.org";
 		private static readonly string _youTrackProjectKey = "BL";	// Or "SB" for Sandbox
 		
-		public static void SubmitToYouTrack(Exception exception, string additionalDescription = "", bool exitImmediately = true)
+		internal static void SubmitToYouTrack(Exception exception, string additionalDescription = "", bool exitImmediately = true)
 		{
 			string summary = $"[BH] Exception \"{exception.Message}\"";
 			string description = GetIssueDescription(exception, additionalDescription);
@@ -25,6 +25,7 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 			Console.Out.WriteLine("Issue caught but skipping creating YouTrack issue because running in DEBUG mode. Exception was:\n" + exception.ToString());
 #else
 			string youTrackIssueId = SubmitToYouTrack(summary, description);
+			Console.Out.WriteLine("Exception: " + exception.ToString());
 			Console.Out.WriteLine($"Created YouTrack issue {youTrackIssueId}");
 #endif
 
@@ -53,7 +54,7 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 			return youTrackIssueId;
 		}
 
-		public static string GetIssueDescription(Exception exception, string additionalDescription)
+		private static string GetIssueDescription(Exception exception, string additionalDescription)
 		{
 			StringBuilder bldr = new StringBuilder();
 			bldr.AppendLine($"Error Report from Bloom Harvester on {DateTime.UtcNow.ToUniversalTime()} (UTC):");

@@ -332,18 +332,6 @@ namespace BloomHarvester.Parse
 		}
 
 		/// <summary>
-		/// Gets all rows from the Parse "publishedBooks" class/table
-		/// </summary>
-		internal IEnumerable<PublishedBook> GetPublishedBooks()
-		{
-			var request = new RestRequest("classes/publishedBooks", Method.GET);
-			SetCommonHeaders(request);
-
-			IEnumerable<PublishedBook> results = GetAllResults<PublishedBook>(request);
-			return results;
-		}
-
-		/// <summary>
 		/// Lazily gets all the results from a Parse database in chunks
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
@@ -385,36 +373,6 @@ namespace BloomHarvester.Parse
 				Logger?.LogVerbose(message);
 			}
 			while (numProcessed < totalCount);
-		}
-
-		/// <summary>
-		/// Gets the Published Book that corresponds to the specified Book
-		/// </summary>
-		/// <param name="bookId">the objectId field of the desired Book</param>
-		/// <returns>The objectId of the PublishedBook whose book pointer corresponds with the passed in bookId</returns>
-		internal string GetPublishedBookByBookId(string bookId)
-		{
-			Logger?.TrackEvent("ParseClient::GetPublishedBookByBookId Start");
-			var request = new RestRequest("classes/publishedBooks", Method.GET);
-			SetCommonHeaders(request);
-			request.AddParameter("limit", "1");
-			request.AddParameter("where", "{ \"book\": { \"__type\":\"Pointer\",\"className\":\"books\",\"objectId\": \"" + bookId + "\"}}");
-
-			var restResponse = _client.Execute(request);
-			string responseJson = restResponse.Content;
-
-			var response = JsonConvert.DeserializeObject<Parse.ParseResponse<PublishedBook>>(responseJson);
-
-			if (response.Results.Length <= 0)
-			{
-				return null;
-			}
-			var result = response.Results[0];
-
-			string objectId = result.ObjectId;
-
-			Logger?.TrackEvent("ParseClient::GetPublishedBookByBookId End - Success");
-			return objectId;
 		}
 	}
 }

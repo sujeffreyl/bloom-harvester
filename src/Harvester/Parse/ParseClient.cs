@@ -20,6 +20,8 @@ namespace BloomHarvester.Parse
 		// Constructors
 		internal ParseClient(EnvironmentSetting environment)
 		{
+			_environmentSetting = environment;
+
 			string url;
 			string environmentVariableName;
 
@@ -59,6 +61,7 @@ namespace BloomHarvester.Parse
 		}
 
 		// Fields and properties
+		private EnvironmentSetting _environmentSetting;
 		private RestClient _client;
 		private string _applicationId;
 		private string _sessionToken;   // Used to keep track of authentication
@@ -89,11 +92,19 @@ namespace BloomHarvester.Parse
 		{
 			_sessionToken = String.Empty;
 
+			// The officially recommended way to pass the password is via a URL parameter of a GET request
+			// (https://docs.parseplatform.org/rest/guide/#logging-in)
+			// If you connect via HTTPS, it should get a secure TCP connection first, then send the HTTP request over SSL...
+			// Which means that having the password in plaintext in the URL (which is at the HTTP layer) isn't immediately terrible.
+			// Other than the fact that the server could very well want to log every URL it processes into a log... or print it out in an exception...
+			// Or that you don't need https for localhost..
 			var request = MakeRequest("login", Method.GET);
-			request.AddParameter("username", Environment.GetEnvironmentVariable("BloomHarvesterParseUserName").ToLowerInvariant());
-			request.AddParameter("password", Environment.GetEnvironmentVariable("BloomHarvesterParsePassword"));
+			request.AddParameter("username", Environment.GetEnvironmentVariable($"BloomHarvesterUserName").ToLowerInvariant());
+			request.AddParameter("password", Environment.GetEnvironmentVariable($"BloomHarvesterUserPassword{_environmentSetting}"));
 
 			var response = _client.Execute(request);
+			CheckForResponseError(response, "Failed to log in");
+
 			var dy = JsonConvert.DeserializeObject<dynamic>(response.Content);
 			_sessionToken = dy.sessionToken; //there's also an "error" in there if it fails, but a null sessionToken tells us all we need to know
 		}
@@ -186,18 +197,25 @@ namespace BloomHarvester.Parse
 
 		private void CheckForResponseError(IRestResponse response, string exceptionInfoFormat, params object[] args)
 		{
-			bool isSuccess = ((int)response.StatusCode >= 200) && ((int)response.StatusCode <= 299);
-			if (!isSuccess)
+			if (!IsResponseCodeSuccess(response.StatusCode))
 			{
-				var message = new StringBuilder();
-
-				message.AppendLine(String.Format(exceptionInfoFormat, args));
-				message.AppendLine("Response.Code: " + response.StatusCode);
-				message.AppendLine("Response.Uri: " + response.ResponseUri);
-				message.AppendLine("Response.Description: " + response.StatusDescription);
-				message.AppendLine("Response.Content: " + response.Content);
-				throw new ApplicationException(message.ToString());
+				throw new ParseException(response, exceptionInfoFormat + "\n", args);
 			}
+		}
+
+		private static bool IsResponseCodeSuccess(HttpStatusCode statusCode)
+		{
+			return ((int)statusCode >= 200) && ((int)statusCode <= 299);
+		}
+
+		private static string GetResponseSummary(IRestResponse response, bool includeUri = true)
+		{
+			string summary =
+				$"Response.Code: {response.StatusCode}\n" +
+				(includeUri ? $"Response.Uri: {response.ResponseUri}\n" : "") +
+				$"Response.Description: {response.StatusDescription}\n" +
+				$"Response.Content: {response.Content}\n";
+			return summary;
 		}
 
 		/// <summary>
@@ -306,11 +324,16 @@ namespace BloomHarvester.Parse
 		/// <summary>
 		/// Gets all rows from the Parse "books" class/table
 		/// </summary>
-		internal IEnumerable<Book> GetBooks()
+		internal IEnumerable<Book> GetBooks(string whereCondition = "")
 		{
 			var request = new RestRequest("classes/books", Method.GET);
 			SetCommonHeaders(request);
 			request.AddParameter("keys", "object_id,baseUrl");
+
+			if (!String.IsNullOrEmpty(whereCondition))
+			{
+				request.AddParameter("where", whereCondition);
+			}
 
 			IEnumerable<Book> results = GetAllResults<Book>(request);
 			return results;

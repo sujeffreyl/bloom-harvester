@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "BloomHarvester": {
+      "commandName": "Project",
+      "commandLineArgs": "harvestAll --environment=dev --parseDBEnvironment=local --suppressLogs --count=10"
+    }
+  }
+}

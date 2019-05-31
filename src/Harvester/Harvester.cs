@@ -42,6 +42,7 @@ namespace BloomHarvester
 
 		public void Dispose()
 		{
+			_parseClient.FlushBatchableOperations();
 			_logger.Dispose();
 		}
 
@@ -51,7 +52,7 @@ namespace BloomHarvester
 
 			using (Harvester harvester = new Harvester(options))
 			{
-				harvester.HarvestAll(maxBooksToProcess: options.Count);
+				harvester.HarvestAll(maxBooksToProcess: options.Count, queryWhereJson: options.QueryWhere);
 			}
 		}
 
@@ -71,7 +72,7 @@ namespace BloomHarvester
 		/// </summary>
 		/// 
 		/// <param name="maxBooksToProcess"></param>
-		private void HarvestAll(int maxBooksToProcess = -1)
+		private void HarvestAll(int maxBooksToProcess = -1, string queryWhereJson = "")
 		{
 			_logger.TrackEvent("HarvestAll Start");
 			var methodStopwatch = new Stopwatch();
@@ -79,7 +80,7 @@ namespace BloomHarvester
 
 			int numBooksProcessed = 0;
 
-			IEnumerable<Book> bookList = _parseClient.GetBooks();
+			IEnumerable<Book> bookList = _parseClient.GetBooks(queryWhereJson);
 			foreach (var book in bookList)
 			{
 				ProcessOneBook(book);

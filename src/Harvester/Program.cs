@@ -17,8 +17,11 @@ namespace BloomHarvester
 		// Command line arguments sample: "harvestAll --environment=dev --parseDBEnvironment=prod"
 		//
 		// Some presets that you might copy and paste in:
-		// harvestAll --environment=dev --parseDBEnvironment=dev --suppressLogs --count=2
+		// harvestAll --environment=dev --parseDBEnvironment=local --suppressLogs --count=2
 		// harvestWarnings --environment=dev --parseDBEnvironment=local --suppressLogs
+		// harvestAll --environment=dev --parseDBEnvironment=local --suppressLogs "--queryWhere={ \"objectId\":\"38WdeYJ0yF\"}"
+		// harvestAll --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"objectId\":\"JUCL9OMOza\"}"
+		// harvestAll --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"title\":{\"$in\":[\"Vaccinations\",\"Fox and Frog\",\"The Moon and the Cap\"]}}"
 		public static void Main(string[] args)
 		{
 			// See https://github.com/commandlineparser/commandline for documentation about CommandLine.Parser
@@ -29,8 +32,7 @@ namespace BloomHarvester
 				settings.CaseSensitive = false;
 				settings.HelpWriter = Console.Error;
 			});
-
-
+			
 			try
 			{
 				parser.ParseArguments<HarvestAllOptions, HarvestHighPriorityOptions, HarvestLowPriorityOptions, HarvestWarningsOptions>(args)
@@ -74,12 +76,16 @@ namespace BloomHarvester
 		[Option("suppressLogs", Required = false, Default = false, HelpText = "If true, will prevent log messages from being logged to the log environment (which may incur fees). Will write those logs to Standard Error instead.")]
 		public bool SuppressLogs { get; set; }
 
+		[Option("queryWhere", Required = false, Default = "", HelpText = "If specified, adds a WHERE clause to the request query when retrieving the list of books to process. This should be in the JSON format used by Parse REST API to pass WHERE clauses. See https://docs.parseplatform.org/rest/guide/#query-constraints")]
+		public string QueryWhere { get; set; }
+
 		public virtual string GetPrettyPrint()
 		{
 			return $"environment: {Environment}\n" +
 				$"parseDBEnvironment: {ParseDBEnvironment}\n" +
 				$"logEnvironment: {LogEnvironment}\n" +
-				$"suppressLogs: {SuppressLogs}";
+				$"suppressLogs: {SuppressLogs}\n" +
+				$"queryWhere: { QueryWhere}";
 		}
 	}
 
@@ -92,7 +98,7 @@ namespace BloomHarvester
 		public override string GetPrettyPrint()
 		{
 			return base.GetPrettyPrint() + "\n" +
-				$"Count: {Count}";
+				$"count: {Count}";
 		}
 	}
 

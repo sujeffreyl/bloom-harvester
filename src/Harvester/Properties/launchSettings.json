@@ -2,7 +2,7 @@
   "profiles": {
     "BloomHarvester": {
       "commandName": "Project",
-      "commandLineArgs": "harvestAll --environment=dev --parseDBEnvironment=local --suppressLogs --count=10"
+      "commandLineArgs": "harvestAll --environment=dev --parseDBEnvironment=dev --suppressLogs --count=2"
     }
   }
 }

@@ -20,7 +20,7 @@ namespace BloomHarvester.Parse
 			}
 			set
 			{
-				if (value != null && !value.StartsWith('/'))
+				if (value != null && !value.StartsWith("/"))
 				{
 					this._path = '/' + value;
 				}

@@ -23,13 +23,13 @@ namespace BloomHarvester.Parse
 		internal void UpdateField(string fieldName, string fieldValueJson)
 		{
 			string trimmedValue = fieldValueJson.TrimStart();
-			bool isArray = trimmedValue.StartsWith('[');
-			bool isObject = trimmedValue.StartsWith('{');
-			bool isWellDefinedString = trimmedValue.StartsWith('"');
+			bool isArray = trimmedValue.StartsWith("[");
+			bool isObject = trimmedValue.StartsWith("{");
+			bool isWellDefinedString = trimmedValue.StartsWith("\"");
 			bool isUnquotedString = !isArray && !isObject && !isWellDefinedString;
 			if (isUnquotedString)
 			{
-				Debug.Assert(!fieldValueJson.StartsWith(' '), "Invalid JSON passed into UpdateField: {0}", fieldValueJson); // Too complicated to fix, just Assert instead.
+				Debug.Assert(!fieldValueJson.StartsWith(" "), "Invalid JSON passed into UpdateField: {0}", fieldValueJson); // Too complicated to fix, just Assert instead.
 
 				fieldValueJson = '"' + fieldValueJson + '"';
 			}

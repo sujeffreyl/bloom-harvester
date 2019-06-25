@@ -22,6 +22,7 @@ namespace BloomHarvester
 		// harvestAll --environment=dev --parseDBEnvironment=local --suppressLogs "--queryWhere={ \"objectId\":\"38WdeYJ0yF\"}"
 		// harvestAll --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"objectId\":\"JUCL9OMOza\"}"
 		// harvestAll --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"title\":{\"$in\":[\"Vaccinations\",\"Fox and Frog\",\"The Moon and the Cap\"]}}"
+		[STAThread]
 		public static void Main(string[] args)
 		{
 			// See https://github.com/commandlineparser/commandline for documentation about CommandLine.Parser

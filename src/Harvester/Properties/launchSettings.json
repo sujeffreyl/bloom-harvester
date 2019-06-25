@@ -2,7 +2,7 @@
   "profiles": {
     "BloomHarvester": {
       "commandName": "Project",
-      "commandLineArgs": "harvestAll --environment=dev --parseDBEnvironment=dev --suppressLogs --count=2"
+      "commandLineArgs": "harvestAll --environment=dev --parseDBEnvironment=dev --suppressLogs \"--queryWhere={ \\\"title\\\":{\\\"$in\\\":[\\\"Trimming Take Three\\\",\\\"Fox and Frog\\\"]}}\""
     }
   }
 }

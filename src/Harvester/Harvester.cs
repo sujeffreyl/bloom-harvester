@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -7,11 +7,13 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Web;
 using Bloom;
+using Bloom.Collection;
 using Bloom.WebLibraryIntegration;
 using BloomHarvester.Logger;
 using BloomHarvester.Parse;
 using BloomHarvester.Parse.Model;
 using BloomHarvester.WebLibraryIntegration;
+using BloomTemp;
 
 namespace BloomHarvester
 {
@@ -22,6 +24,9 @@ namespace BloomHarvester
 		private ParseClient _parseClient;
 		private BookTransfer _transfer;
 		private HarvesterS3Client _s3UploadClient;  // Note that we upload books to a different bucket than we download them from, so we have a separate client.
+
+		private ApplicationContainer _applicationContainer;
+		private ProjectContext _projectContext;
 
 		internal bool IsDebug { get; set; }
 
@@ -71,12 +76,20 @@ namespace BloomHarvester
 				bookDownloadStartingEvent: new BookDownloadStartingEvent());
 
 			_s3UploadClient = new HarvesterS3Client(uploadBucketName);
+
+			_applicationContainer = new Bloom.ApplicationContainer();
+			Bloom.Program.SetUpLocalization(_applicationContainer);
+			// TODO: Harvester should set up its own collections for each lang combination. Get the primary language from the book.
+			_projectContext = _applicationContainer.CreateProjectContext(@"C:\Users\SuJ\Documents\Bloom\BloomHarvesterCollection\BloomHarvesterCollection.bloomCollection");
+			Bloom.Program.SetProjectContext(_projectContext);
 		}
 
 		public void Dispose()
 		{
 			_parseClient.FlushBatchableOperations();
 			_logger.Dispose();
+			_projectContext.Dispose();
+			_applicationContainer.Dispose();
 		}
 
 		public static void RunHarvestAll(HarvestAllOptions options)
@@ -163,10 +176,8 @@ namespace BloomHarvester
 				var warnings = FindBookWarnings(book);
 				finalUpdates.UpdateField(Book.kWarningsField, Book.ToJson(warnings));
 
-				// ENHANCE: Do more processing here
-				_logger.TrackEvent("Upload Book");
-
-				UploadBook(decodedUrl, downloadBookDir);
+				// Make the .bloomd and /bloomdigital outputs
+				UploadBloomD(decodedUrl, downloadBookDir);
 
 				// Write the updates
 				finalUpdates.UpdateField(Book.kHarvestStateField, Book.HarvestState.Done.ToString());
@@ -252,24 +263,49 @@ namespace BloomHarvester
 		}
 
 		/// <summary>
-		/// Uploads a book for publishing to the bloomharvest bucket.
+		/// Converts a book to BloomD and uploads it for publishing to the bloomharvest bucket.
 		/// </summary>
 		/// <param name="downloadUrl">Precondition: The URL should not be encoded.</param>
 		/// <param name="downloadBookDir"></param>
-		private void UploadBook(string downloadUrl, string downloadBookDir)
+		private void UploadBloomD(string downloadUrl, string downloadBookDir)
 		{
-			// ENHANCE: Maybe you can delete some files that you don't need out of here.
-
-			RenameFilesForHarvestUpload(downloadBookDir);
 			var components = new S3UrlComponents(downloadUrl);
-			string bucketLocationSuffix = $"{components.Submitter}/{components.BookGuid}/bloomdigital";
-			_s3UploadClient.UploadDirectory(downloadBookDir, bucketLocationSuffix);
+
+			Bloom.Program.RunningNonApplicationMode = true;
+
+			Bloom.Book.BookServer bookServer = _projectContext.BookServer;
+			using (var folderForUnzipped = new TemporaryFolder("BloomHarvesterStagingUnzipped"))
+			{
+				using (var folderForZipped = new TemporaryFolder("BloomHarvesterStagingZipped"))
+				{
+					string zippedBloomDOutputPath = Path.Combine(folderForZipped.FolderPath, $"{components.BookTitle}.bloomd");
+
+					// Make the bloomd
+					Bloom.Browser.SetUpXulRunner();
+					string unzippedPath = Bloom.Publish.Android.BloomReaderFileMaker.CreateBloomReaderBook(
+						zippedBloomDOutputPath,
+						downloadBookDir,
+						bookServer,
+						System.Drawing.Color.Azure,	// TODO: What should this be?
+						new Bloom.web.NullWebSocketProgress(),
+						folderForUnzipped);
+
+					RenameFilesForHarvestUpload(unzippedPath);
+
+					string s3FolderLocation = $"{components.Submitter}/{components.BookGuid}";
+
+					_logger.TrackEvent("Upload .bloomd");
+					_s3UploadClient.UploadFile(zippedBloomDOutputPath, s3FolderLocation);
+
+					_logger.TrackEvent("Upload bloomdigital directory");
+					_s3UploadClient.UploadDirectory(unzippedPath, $"{s3FolderLocation}/bloomdigital");
+				}
+			}
 		}
 
 		// Consumers expect the file to be in index.htm name, not {title}.htm name.
 		private static void RenameFilesForHarvestUpload(string bookDirectory)
 		{
-			string title = GetBookTitleFromBookPath(bookDirectory);
 			string originalHtmFilePath = Bloom.Book.BookStorage.FindBookHtmlInFolder(bookDirectory);
 
 			Debug.Assert(File.Exists(originalHtmFilePath), "Book HTM not found: " + originalHtmFilePath);

@@ -43,22 +43,43 @@ namespace BloomHarvester.WebLibraryIntegration
 				RegionEndpoint.USEast1);
 		}
 
-		public void UploadFile(string filePath)
+		/// <summary>
+		/// Uploads a single file to AWS S3
+		/// </summary>
+		/// <param name="filePath"></param>
+		/// <param name="uploadFolderKey">The key prefix of the S3 object to create (i.e., which subfolder to upload it to)</param>
+		public void UploadFile(string filePath, string uploadFolderKey)
 		{
 			using (var fileTransferUtility = new TransferUtility(GetAmazonS3(_bucketName)))
 			{
-				fileTransferUtility.Upload(filePath, _bucketName);
+				fileTransferUtility.Upload(filePath, $"{_bucketName}/{uploadFolderKey}");
 			}
 		}
 
+		/// <summary>
+		/// Uploads a directory to AWS S3
+		/// </summary>
+		/// <param name="directoryToUpload">The local directory whose contents should be uploaded to S3</param>
+		/// <param name="uploadFolderKey">The key prefix of the S3 objects to create (i.e., which subfolder to upload it to)</param>
 		public void UploadDirectory(string directoryToUpload, string uploadFolderKey)
 		{
 			// Delete the directory first in case the directory to upload is a strict subset of the existing contents.
 			DeleteBookData(_bucketName, uploadFolderKey);
 
-			using (var fileTransferUtility = new TransferUtility(GetAmazonS3(_bucketName)))
+			using (var transferUtility = new TransferUtility(GetAmazonS3(_bucketName)))
 			{
-				fileTransferUtility.UploadDirectory(directoryToUpload, $"{_bucketName}/{uploadFolderKey}", "*.*", System.IO.SearchOption.AllDirectories);
+				var request = new TransferUtilityUploadDirectoryRequest
+				{
+					Directory = directoryToUpload,
+					BucketName = _bucketName,
+					KeyPrefix = uploadFolderKey,
+					SearchPattern = "*.*",
+					SearchOption = System.IO.SearchOption.AllDirectories,
+					CannedACL = S3CannedACL.PublicRead
+				};
+
+				// Enhance: Could call the BloomDesktop code directly in future if desired.
+				transferUtility.UploadDirectory(request);
 			}
 		}
 	}

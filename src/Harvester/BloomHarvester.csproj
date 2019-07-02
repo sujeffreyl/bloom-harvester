@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -30,7 +30,8 @@
     </Reference>
     -->
     <Reference Include="Bloom">
-      <HintPath>..\..\..\BloomDesktop4.6\output\Debug\Bloom.exe</HintPath>
+      <HintPath>..\..\lib\dotnet\Bloom.exe</HintPath>
+      <SpecificVersion>false</SpecificVersion>
     </Reference>
     <Reference Include="L10NSharp">
       <HintPath>..\..\lib\dotnet\L10NSharp.dll</HintPath>

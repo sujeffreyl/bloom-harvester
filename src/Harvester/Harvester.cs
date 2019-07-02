@@ -79,16 +79,12 @@ namespace BloomHarvester
 
 			_applicationContainer = new Bloom.ApplicationContainer();
 			Bloom.Program.SetUpLocalization(_applicationContainer);
-			// TODO: Harvester should set up its own collections for each lang combination. Get the primary language from the book.
-			_projectContext = _applicationContainer.CreateProjectContext(@"C:\Users\SuJ\Documents\Bloom\BloomHarvesterCollection\BloomHarvesterCollection.bloomCollection");
-			Bloom.Program.SetProjectContext(_projectContext);
 		}
 
 		public void Dispose()
 		{
 			_parseClient.FlushBatchableOperations();
 			_logger.Dispose();
-			_projectContext.Dispose();
 			_applicationContainer.Dispose();
 		}
 
@@ -171,17 +167,27 @@ namespace BloomHarvester
 				_logger.LogVerbose("Download Dir: {0}", downloadRootDir);
 				string downloadBookDir = _transfer.HandleDownloadWithoutProgress(urlWithoutTitle, downloadRootDir);
 
-				// Process the book
-				var finalUpdates = new UpdateOperation();
-				var warnings = FindBookWarnings(book);
-				finalUpdates.UpdateField(Book.kWarningsField, Book.ToJson(warnings));
+				// Set up a project context
+				var analyzer = BookAnalyzer.fromFolder(downloadBookDir);
+				var collectionFilePath = analyzer.WriteBloomCollection(downloadBookDir);
+				using (_projectContext = _applicationContainer.CreateProjectContext(collectionFilePath))
+				{
+					Bloom.Program.SetProjectContext(_projectContext);
 
-				// Make the .bloomd and /bloomdigital outputs
-				UploadBloomD(decodedUrl, downloadBookDir);
+					// Process the book
+					var finalUpdates = new UpdateOperation();
+					var warnings = FindBookWarnings(book);
+					finalUpdates.UpdateField(Book.kWarningsField, Book.ToJson(warnings));
 
-				// Write the updates
-				finalUpdates.UpdateField(Book.kHarvestStateField, Book.HarvestState.Done.ToString());
-				_parseClient.UpdateObject(book.GetParseClassName(), book.ObjectId, finalUpdates.ToJson());
+					// Make the .bloomd and /bloomdigital outputs
+					UploadBloomD(decodedUrl, downloadBookDir);
+
+					// Write the updates
+					finalUpdates.UpdateField(Book.kHarvestStateField, Book.HarvestState.Done.ToString());
+					_parseClient.UpdateObject(book.GetParseClassName(), book.ObjectId, finalUpdates.ToJson());
+				}
+
+				_projectContext = null; // fail fast if we try to use it while we don't have one.
 
 				_logger.TrackEvent("ProcessOneBook End - Success");
 			}

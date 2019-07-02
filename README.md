@@ -18,6 +18,11 @@ If you want to view the logs or status in Azure Portal, you will obviously also 
 *** harvester@bloomlibrary.org
 ** BloomHarvesterUserPassword{Prod|Test|Dev|Local}
 *** Ask jeffrey_su@sil.org or john_thomson@sil.org.
+## dependency on Bloom
+We haven't yet fully automated getting all dependencies. Currently, the best approach is to build harvester, then
+- copy Bloom's Distfiles directory into havester's src/Harvester/bin/Debug/net461 directory.
+- also copy contents of Bloom's output/Debug  directory there (generally replace files already present)
+- also copy output/browser to that same directory (the folder itself with its contents, not just the contents)
 ## Azure
 ### Searching for specific log text
 1. portal.azure.com

@@ -11,6 +11,7 @@ using Bloom.Book;
 using Bloom.Collection;
 using Bloom.Publish.Epub;
 using Bloom.web;
+using Bloom.web.controllers;
 using Bloom.WebLibraryIntegration;
 using BloomHarvester.Logger;
 using BloomHarvester.Parse;
@@ -128,6 +129,7 @@ namespace BloomHarvester
 			IEnumerable<Book> bookList = _parseClient.GetBooks(queryWhereJson);
 			// Various publishing steps use GeckoFx windows; this is required one-time initialization.
 			Bloom.Browser.SetUpXulRunner();
+			CollectionSettings.HarvesterMode = true;
 			foreach (var book in bookList)
 			{
 				ProcessOneBook(book);

@@ -80,6 +80,10 @@ namespace BloomHarvester
 		[Option("queryWhere", Required = false, Default = "", HelpText = "If specified, adds a WHERE clause to the request query when retrieving the list of books to process. This should be in the JSON format used by Parse REST API to pass WHERE clauses. See https://docs.parseplatform.org/rest/guide/#query-constraints")]
 		public string QueryWhere { get; set; }
 
+		[Option("readOnly", Required = false, Default = false, HelpText = "If specified, harvester just downloads the books")]
+
+		public bool ReadOnly { get; set; }
+
 		public virtual string GetPrettyPrint()
 		{
 			return $"environment: {Environment}\n" +

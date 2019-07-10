@@ -36,8 +36,11 @@ namespace BloomHarvester
 
 		public string Identifier { get; set; }
 
+		private HarvesterCommonOptions _options;
+
 		public Harvester(HarvesterCommonOptions options)
 		{
+			_options = options;
 			// Note: If the same machine runs multiple BloomHarvester processes, then you need to add a suffix to this.
 			this.Identifier = Environment.MachineName;
 
@@ -173,6 +176,8 @@ namespace BloomHarvester
 				string downloadRootDir = Path.Combine(Path.GetTempPath(), Path.Combine("BloomHarvester", this.Identifier));
 				_logger.LogVerbose("Download Dir: {0}", downloadRootDir);
 				string downloadBookDir = _transfer.HandleDownloadWithoutProgress(urlWithoutTitle, downloadRootDir);
+				if (_options.ReadOnly)
+					return;
 
 				// Set up a project context
 				var analyzer = BookAnalyzer.fromFolder(downloadBookDir);

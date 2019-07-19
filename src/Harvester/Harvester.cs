@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -310,15 +311,24 @@ namespace BloomHarvester
 						new Bloom.web.NullWebSocketProgress(),
 						folderForUnzipped);
 
-					RenameFilesForHarvestUpload(unzippedPath);
+					// Currently the zipping process does some things we actually need, like making the cover picture
+					// transparent (BL-7437). Eventually we plan to separate the preparation and zipping steps (BL-7445).
+					// Until that is done, the most reliable way to get an unzipped BloomD for our preview is to actually
+					// unzip the BloomD.
+					using (var folderForUnzippedOutput = new TemporaryFolder("BloomHarvesterStagingOutput"))
+					{
+						ZipFile.ExtractToDirectory(zippedBloomDOutputPath, folderForUnzippedOutput.FolderPath);
+						RenameFilesForHarvestUpload(folderForUnzippedOutput.FolderPath);
 
-					string s3FolderLocation = $"{components.Submitter}/{components.BookGuid}";
+						string s3FolderLocation = $"{components.Submitter}/{components.BookGuid}";
 
-					_logger.TrackEvent("Upload .bloomd");
-					_s3UploadClient.UploadFile(zippedBloomDOutputPath, s3FolderLocation);
+						_logger.TrackEvent("Upload .bloomd");
+						_s3UploadClient.UploadFile(zippedBloomDOutputPath, s3FolderLocation);
 
-					_logger.TrackEvent("Upload bloomdigital directory");
-					_s3UploadClient.UploadDirectory(unzippedPath, $"{s3FolderLocation}/bloomdigital");
+						_logger.TrackEvent("Upload bloomdigital directory");
+						_s3UploadClient.UploadDirectory(folderForUnzippedOutput.FolderPath,
+							$"{s3FolderLocation}/bloomdigital");
+					}
 				}
 			}
 		}

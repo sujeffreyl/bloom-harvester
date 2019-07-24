@@ -5,10 +5,10 @@ using System.Text;
 
 namespace BloomHarvester.Parse.Model
 {
-	[JsonObject(MemberSerialization=MemberSerialization.OptIn)]
-	public class Book : ParseObject
-	{
-		// TODO: There are many more properties from the book table that we could add when they are needed.
+    [JsonObject(MemberSerialization = MemberSerialization.OptIn)]
+    public class Book : ParseObject
+    {
+        // TODO: There are many more properties from the book table that we could add when they are needed.
 
         [JsonProperty("baseUrl")]
         public string BaseUrl;
@@ -29,7 +29,7 @@ namespace BloomHarvester.Parse.Model
         public enum HarvestState
         {
             Unknown,
-            New,
+            New, // set by parse code when the user uploads a book
             Updated, // set by parse code when the user re-uploads a book
             InProgress,
             Done,

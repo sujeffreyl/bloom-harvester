@@ -303,13 +303,14 @@ namespace BloomHarvester
 					string zippedBloomDOutputPath = Path.Combine(folderForZipped.FolderPath, $"{components.BookTitle}.bloomd");
 
 					// Make the bloomd
-					string unzippedPath = Bloom.Publish.Android.BloomReaderFileMaker.CreateBloomReaderBook(
+					string unzippedPath = Bloom.Publish.Android.BloomReaderFileMaker.CreateBloomDigitalBook(
 						zippedBloomDOutputPath,
 						downloadBookDir,
 						bookServer,
 						System.Drawing.Color.Azure,	// TODO: What should this be?
 						new Bloom.web.NullWebSocketProgress(),
-						folderForUnzipped);
+						folderForUnzipped,
+						creator: "harvester");
 
 					// Currently the zipping process does some things we actually need, like making the cover picture
 					// transparent (BL-7437). Eventually we plan to separate the preparation and zipping steps (BL-7445).

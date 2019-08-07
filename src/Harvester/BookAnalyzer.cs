@@ -72,7 +72,7 @@ namespace BloomHarvester
 		public string Language2Code { get; }
 		public string Language3Code { get; set; }
 		public string Branding { get; }
-		public bool IsEnterprise => !string.IsNullOrWhiteSpace(Branding) && Branding != "Default";
+		public string SubscriptionCode { get; }
 
 		/// <summary>
 		/// The content appropriate to a skeleton BookCollection file for this book.

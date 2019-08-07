@@ -193,7 +193,7 @@ namespace BloomHarvester
 					finalUpdates.UpdateField(Book.kWarningsField, Book.ToJson(warnings));
 
 					// Make the .bloomd and /bloomdigital outputs
-					UploadBloomD(decodedUrl, downloadBookDir, analyzer.IsEnterprise);
+					UploadBloomD(decodedUrl, downloadBookDir);
 
 					// And a default epub
 					UploadEpub(decodedUrl, downloadBookDir);
@@ -289,7 +289,7 @@ namespace BloomHarvester
 		/// </summary>
 		/// <param name="downloadUrl">Precondition: The URL should not be encoded.</param>
 		/// <param name="downloadBookDir"></param>
-		private void UploadBloomD(string downloadUrl, string downloadBookDir, bool isEnterprise)
+		private void UploadBloomD(string downloadUrl, string downloadBookDir)
 		{
 			var components = new S3UrlComponents(downloadUrl);
 
@@ -303,14 +303,13 @@ namespace BloomHarvester
 					string zippedBloomDOutputPath = Path.Combine(folderForZipped.FolderPath, $"{components.BookTitle}.bloomd");
 
 					// Make the bloomd
-					Bloom.Publish.Android.BloomReaderFileMaker.CreateBloomDigitalBook(
+					string unzippedPath = Bloom.Publish.Android.BloomReaderFileMaker.CreateBloomDigitalBook(
 						zippedBloomDOutputPath,
 						downloadBookDir,
 						bookServer,
 						System.Drawing.Color.Azure,	// TODO: What should this be?
-						new NullWebSocketProgress(),
+						new Bloom.web.NullWebSocketProgress(),
 						folderForUnzipped,
-						hasEnterpriseFeatures: isEnterprise,
 						creator: "harvester");
 
 					// Currently the zipping process does some things we actually need, like making the cover picture

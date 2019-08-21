@@ -24,4 +24,7 @@
     </Reference>
   </ItemGroup>
 
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="copy /Y &quot;$(SolutionDir)\lib\dotnet\libtidy.dll&quot; $(OutDir)" />
+  </Target>
 </Project>

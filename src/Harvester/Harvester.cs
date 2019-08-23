@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -337,15 +337,8 @@ namespace BloomHarvester
 
 					string s3FolderLocation = $"{components.Submitter}/{components.BookGuid}";
 
-					_logger.TrackEvent("Upload .bloomd");
-					_s3UploadClient.UploadFile(zippedBloomDOutputPath, s3FolderLocation);
-
-					_logger.TrackEvent("Upload bloomdigital directory");
-					_s3UploadClient.UploadDirectory(folderForUnzipped.FolderPath,
-						$"{s3FolderLocation}/bloomdigital");
-
-					_logger.TrackEvent("Upload .epub");
-					_s3UploadClient.UploadFile(epubOutputPath, $"{s3FolderLocation}/epub");
+					UploadBloomDigitalArtifacts(zippedBloomDOutputPath, folderForUnzipped.FolderPath, s3FolderLocation);
+					UploadEPubArtifact(epubOutputPath, s3FolderLocation);
 				}
 			}
 
@@ -375,10 +368,23 @@ namespace BloomHarvester
 				}
 			};
 
+			StringBuilder processErrorBuffer = new StringBuilder();
+			process.ErrorDataReceived += new DataReceivedEventHandler((sender, e) => { processErrorBuffer.Append(e.Data); });			
+
 			process.Start();
+
+			// These ReadToEnd() calls are filled with deadlock potential if you write them naively.
+			// See this official documentation for details on proper usage:
+			// https://docs.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.redirectstandardoutput?redirectedfrom=MSDN&view=netframework-4.8#System_Diagnostics_ProcessStartInfo_RedirectStandardOutput
+			//
+			// Highlights: You shouldn't have WaitForExit() followed by ReadToEnd(). It will deadlock if the new process writes enough to fill the buffer.
+			//             You shouldn't have ReadToEnd() of both stdout and stderr. It will deadlock if the new process writes enough to fill the buffer.
+			standardOutput = process.StandardOutput.ReadToEnd();
+			process.BeginErrorReadLine();
 
 			// Block and wait for it to finish
 			bool hasExited = process.WaitForExit(timeoutMilliseconds);
+			standardError = processErrorBuffer.ToString();
 
 			bool isExitedNormally = true;
 			if (!hasExited)
@@ -395,8 +401,6 @@ namespace BloomHarvester
 			}
 
 			exitCode = process.ExitCode;
-			standardOutput = process.StandardOutput.ReadToEnd();
-			standardError = process.StandardError.ReadToEnd();
 
 			if (!String.IsNullOrWhiteSpace(standardOutput))
 				Console.Out.WriteLine("Standard out: " + standardOutput);
@@ -404,6 +408,34 @@ namespace BloomHarvester
 				Console.Out.WriteLine("Standard error: " + standardError);
 
 			return isExitedNormally;
+		}
+
+		/// <summary>
+		/// Uploads the .bloomd and the bloomdigital folders to S3
+		/// </summary>
+		/// <param name="zippedBloomDPath">The .bloomd file (zipped) path on this machine</param>
+		/// <param name="unzippedFolderPath">The bloomdigital folder (unzipped) path on this machine</param>
+		/// <param name="s3FolderLocation">The S3 path to upload to</param>
+		private void UploadBloomDigitalArtifacts(string zippedBloomDPath, string unzippedFolderPath, string s3FolderLocation)
+		{
+			_logger.TrackEvent("Upload .bloomd");
+			_s3UploadClient.UploadFile(zippedBloomDPath, s3FolderLocation);
+
+			_logger.TrackEvent("Upload bloomdigital directory");
+			_s3UploadClient.UploadDirectory(unzippedFolderPath,
+				$"{s3FolderLocation}/bloomdigital");
+		}
+
+		// This function doesn't wrap much, but I made so that when studying the stack trace of exceptions, we could distinguish errors uploading .bloomd vs .epub files.
+		/// <summary>
+		/// Uploads an EPub to S3
+		/// </summary>
+		/// <param name="epubPath">The current location of an ePub on this machine</param>
+		/// <param name="s3FolderLocation">The S3 path to upload to</param>
+		private void UploadEPubArtifact(string epubPath, string s3FolderLocation)
+		{
+			_logger.TrackEvent("Upload .epub");
+			_s3UploadClient.UploadFile(epubPath, $"{s3FolderLocation}/epub");
 		}
 
 		private void HarvestWarnings()

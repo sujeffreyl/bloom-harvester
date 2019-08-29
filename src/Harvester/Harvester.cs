@@ -24,8 +24,6 @@ namespace BloomHarvester
 		private BookTransfer _transfer;
 		private HarvesterS3Client _s3UploadClient;  // Note that we upload books to a different bucket than we download them from, so we have a separate client.
 
-		private ApplicationContainer _applicationContainer;
-
 		private const int kCreateArtifactsTimeoutSecs = 120;	// TODO: Maybe bump it up to 5 min (300 secs) after development stabilized
 
 		internal bool IsDebug { get; set; }
@@ -81,16 +79,12 @@ namespace BloomHarvester
 				bookDownloadStartingEvent: new BookDownloadStartingEvent());
 
 			_s3UploadClient = new HarvesterS3Client(uploadBucketName, parseDBEnvironment, false);
-
-			_applicationContainer = new Bloom.ApplicationContainer();
-			Bloom.Program.SetUpLocalization(_applicationContainer);
 		}
 
 		public void Dispose()
 		{
 			_parseClient.FlushBatchableOperations();
 			_logger.Dispose();
-			_applicationContainer.Dispose();
 		}
 
 		public static void RunHarvestAll(HarvestAllOptions options)

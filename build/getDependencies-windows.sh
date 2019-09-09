@@ -68,43 +68,44 @@ cd -
 # *** Results ***
 # build: Harvester-Master-Continuous (Bloom_HarvesterMasterContinuous)
 # project: Bloom
-# URL: http://build.palaso.org/viewType.html?buildTypeId=Bloom_HarvesterMasterContinuous
+# URL: https://build.palaso.org/viewType.html?buildTypeId=Bloom_HarvesterMasterContinuous
 # VCS: https://github.com/BloomBooks/bloom-harvester.git [refs/heads/master]
 # dependencies:
 # [0] build: Bloom-Default-Continuous (bt222)
 #     project: Bloom
-#     URL: http://build.palaso.org/viewType.html?buildTypeId=bt222
+#     URL: https://build.palaso.org/viewType.html?buildTypeId=bt222
 #     clean: false
 #     revision: latest.lastSuccessful
 #     paths: {"bin/Release/Bloom*.exe"=>"lib/dotnet"}
 #     VCS: git://github.com/BloomBooks/BloomDesktop.git [refs/heads/master]
 # [1] build: YouTrackSharp (Bloom_YouTrackSharp)
 #     project: Bloom
-#     URL: http://build.palaso.org/viewType.html?buildTypeId=Bloom_YouTrackSharp
+#     URL: https://build.palaso.org/viewType.html?buildTypeId=Bloom_YouTrackSharp
 #     clean: false
 #     revision: latest.lastSuccessful
 #     paths: {"bin/YouTrackSharp.dll"=>"lib/dotnet", "bin/YouTrackSharp.pdb"=>"lib/dotnet"}
 #     VCS: https://github.com/BloomBooks/YouTrackSharp.git [LinuxCompatible]
 # [2] build: L10NSharp master continuous (L10NSharp_L10NSharpMasterContinuous)
 #     project: L10NSharp
-#     URL: http://build.palaso.org/viewType.html?buildTypeId=L10NSharp_L10NSharpMasterContinuous
+#     URL: https://build.palaso.org/viewType.html?buildTypeId=L10NSharp_L10NSharpMasterContinuous
 #     clean: false
 #     revision: latest.lastSuccessful
 #     paths: {"L10NSharp.dll"=>"lib/dotnet/", "L10NSharp.pdb"=>"lib/dotnet/"}
+#     VCS: https://github.com/sillsdev/l10nsharp [refs/heads/master]
 # [3] build: TidyManaged-master-win32-continuous (bt349)
 #     project: TidyManaged
-#     URL: http://build.palaso.org/viewType.html?buildTypeId=bt349
+#     URL: https://build.palaso.org/viewType.html?buildTypeId=bt349
 #     clean: false
 #     revision: latest.lastSuccessful
 #     paths: {"*.*"=>"lib/dotnet"}
 #     VCS: https://github.com/BloomBooks/TidyManaged.git [master]
 # [4] build: palaso-win32-master-nostrongname Continuous (Libpalaso_PalasoWin32masterNostrongnameContinuous)
 #     project: libpalaso
-#     URL: http://build.palaso.org/viewType.html?buildTypeId=Libpalaso_PalasoWin32masterNostrongnameContinuous
+#     URL: https://build.palaso.org/viewType.html?buildTypeId=Libpalaso_PalasoWin32masterNostrongnameContinuous
 #     clean: false
 #     revision: latest.lastSuccessful
-#     paths: {"SIL.Core.dll"=>"lib/dotnet/", "SIL.Core.Desktop.dll"=>"lib/dotnet/"}
-#     VCS: https://github.com/sillsdev/libpalaso.git [master]
+#     paths: {"DialogAdapters.dll"=>"lib/dotnet/", "SIL.Core.dll"=>"lib/dotnet/", "SIL.Core.Desktop.dll"=>"lib/dotnet/", "SIL.Windows.Forms.dll"=>"lib/dotnet/", "SIL.Windows.Forms.GeckoBrowserAdapter.dll"=>"lib/dotnet/", "SIL.Windows.Forms.Keyboarding.dll"=>"lib/dotnet/", "SIL.Windows.Forms.WritingSystems.dll"=>"lib/dotnet/"}
+#     VCS: https://github.com/sillsdev/libpalaso.git [refs/heads/master]
 
 # make sure output directories exist
 mkdir -p ../lib/dotnet
@@ -119,6 +120,11 @@ copy_auto http://build.palaso.org/guestAuth/repository/download/L10NSharp_L10NSh
 copy_auto http://build.palaso.org/guestAuth/repository/download/bt349/latest.lastSuccessful/TidyManaged.dll ../lib/dotnet/TidyManaged.dll
 copy_auto http://build.palaso.org/guestAuth/repository/download/bt349/latest.lastSuccessful/TidyManaged.dll.config ../lib/dotnet/TidyManaged.dll.config
 copy_auto http://build.palaso.org/guestAuth/repository/download/bt349/latest.lastSuccessful/libtidy.dll ../lib/dotnet/libtidy.dll
+copy_auto http://build.palaso.org/guestAuth/repository/download/Libpalaso_PalasoWin32masterNostrongnameContinuous/latest.lastSuccessful/DialogAdapters.dll ../lib/dotnet/DialogAdapters.dll
 copy_auto http://build.palaso.org/guestAuth/repository/download/Libpalaso_PalasoWin32masterNostrongnameContinuous/latest.lastSuccessful/SIL.Core.dll ../lib/dotnet/SIL.Core.dll
 copy_auto http://build.palaso.org/guestAuth/repository/download/Libpalaso_PalasoWin32masterNostrongnameContinuous/latest.lastSuccessful/SIL.Core.Desktop.dll ../lib/dotnet/SIL.Core.Desktop.dll
+copy_auto http://build.palaso.org/guestAuth/repository/download/Libpalaso_PalasoWin32masterNostrongnameContinuous/latest.lastSuccessful/SIL.Windows.Forms.dll ../lib/dotnet/SIL.Windows.Forms.dll
+copy_auto http://build.palaso.org/guestAuth/repository/download/Libpalaso_PalasoWin32masterNostrongnameContinuous/latest.lastSuccessful/SIL.Windows.Forms.GeckoBrowserAdapter.dll ../lib/dotnet/SIL.Windows.Forms.GeckoBrowserAdapter.dll
+copy_auto http://build.palaso.org/guestAuth/repository/download/Libpalaso_PalasoWin32masterNostrongnameContinuous/latest.lastSuccessful/SIL.Windows.Forms.Keyboarding.dll ../lib/dotnet/SIL.Windows.Forms.Keyboarding.dll
+copy_auto http://build.palaso.org/guestAuth/repository/download/Libpalaso_PalasoWin32masterNostrongnameContinuous/latest.lastSuccessful/SIL.Windows.Forms.WritingSystems.dll ../lib/dotnet/SIL.Windows.Forms.WritingSystems.dll
 # End of script

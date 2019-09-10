@@ -12,7 +12,6 @@ namespace BloomHarvester.Parse
 
 		internal UpdateOperation()
 		{
-			_updatedFieldValues["updateSource"] = "\"bloomHarvester\"";
 		}
 
 		internal void Clear()

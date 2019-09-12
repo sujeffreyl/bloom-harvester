@@ -28,6 +28,10 @@ namespace BloomHarvester
 		// harvest --mode=default --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"uploader\":{\"$in\":[\"SXsqpDHGKk\"]}}"
 		//
 		// updateState --parseDBEnvironment=dev --id="ze17yO6jIm" --newState="InProgress"
+		// Alternatively, you can use Parse API Console.
+		//   * Request type: PUT
+		//   * Endpoint: classes/books/{OBJECTID}
+		//   * Query Parameters: {"updateSource":"bloomHarvester","harvestState":"{NEWSTATE}"}
 		[STAThread]
 		public static void Main(string[] args)
 		{
@@ -95,7 +99,8 @@ namespace BloomHarvester
 
 		public virtual string GetPrettyPrint()
 		{
-			return $"environment: {Environment}\n" +
+			return $"mode: {Mode}\n" +
+				$"environment: {Environment}\n" +
 				$"parseDBEnvironment: {ParseDBEnvironment}\n" +
 				$"logEnvironment: {LogEnvironment}\n" +
 				$"suppressLogs: {SuppressLogs}\n" +

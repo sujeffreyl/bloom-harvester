@@ -10,7 +10,7 @@ namespace BloomHarvester.Parse
 	{
 		internal BookUpdateOperation()
 		{
-			UpdateField("updateSource", "\"bloomHarvester\"");
+			UpdateFieldWithString("updateSource", "bloomHarvester");
 		}
 	}
 }

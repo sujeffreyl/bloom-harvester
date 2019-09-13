@@ -12,7 +12,6 @@ namespace BloomHarvester.Parse
 
 		internal UpdateOperation()
 		{
-			_updatedFieldValues["updateSource"] = "\"bloomHarvester\"";
 		}
 
 		internal void Clear()
@@ -23,23 +22,33 @@ namespace BloomHarvester.Parse
 		/// <summary>
 		/// Registers that a field was updated
 		/// </summary>
-		/// <param name="fieldName"></param>
-		/// <param name="fieldValueJson">If the value represents a string, it should be passed in quoted. If the value represents an object, it should not have quotes surrounding it... just start with a brace.</param>
-		internal void UpdateField(string fieldName, string fieldValueJson)
+		/// <param name="fieldName">The name of the field that was updated.</param>
+		/// <param name="fieldValueJson">the JSON representing of an object. If the value represents a string, it should be passed in quoted. If the value represents an object, it should not have quotes surrounding it... just start with a brace. Numbers should be passed in unquoted.</param>
+		internal void UpdateFieldWithJson(string fieldName, string fieldValueJson)
 		{
-			string trimmedValue = fieldValueJson.TrimStart();
-			bool isArray = trimmedValue.StartsWith("[");
-			bool isObject = trimmedValue.StartsWith("{");
-			bool isWellDefinedString = trimmedValue.StartsWith("\"");
-			bool isUnquotedString = !isArray && !isObject && !isWellDefinedString;
-			if (isUnquotedString)
-			{
-				Debug.Assert(!fieldValueJson.StartsWith(" "), "Invalid JSON passed into UpdateField: {0}", fieldValueJson); // Too complicated to fix, just Assert instead.
-
-				fieldValueJson = '"' + fieldValueJson + '"';
-			}
-
 			_updatedFieldValues[fieldName] = fieldValueJson;
+		}
+
+		/// <summary>
+		/// Registers that a field was updated.
+		/// </summary>
+		/// <param name="fieldName"></param>
+		/// <param name="str">The string representing the field value. This is the raw string, it should not be escaped with quotes or converted to JSON or anything.</param>
+		internal void UpdateFieldWithString(string fieldName, string fieldValue)
+		{
+			string jsonRepresentation = $"\"{fieldValue}\"";
+			UpdateFieldWithJson(fieldName, jsonRepresentation);
+		}
+
+		/// <summary>
+		/// Registers that a field was updated.
+		/// </summary>
+		/// <param name="fieldName">The name of the field that was updated.</param>
+		/// <param name="numericFieldValue">Nominally should be some kind of int, double, etc.</param>
+		internal void UpdateFieldWithNumber(string fieldName, object numericFieldValue)
+		{
+			string jsonRepresentation = numericFieldValue.ToString();   // No need for escaping with quotes (or braces or brackets or anything)
+			UpdateFieldWithJson(fieldName, jsonRepresentation);
 		}
 
 		// Gets the JSON string to use in the Parse request to tell it all the fields to update

@@ -21,7 +21,8 @@ do
 	cp -r "$bloomDir/output/browser/templates" "$harvestBuildDir/browser/templates"
 	cp -r "$bloomDir/output/browser/themes" "$harvestBuildDir/browser/themes"
 
-	cp -r "$bloomDir/DistFiles/localization" "$harvestBuildDir/localization"
-	cp "$bloomDir/DistFiles/BloomBlankPage.htm" "$harvestBuildDir"
-	cp "$bloomDir/DistFiles/connections.dll" "$harvestBuildDir"
+	mkdir -p "$harvestBuildDir/DistFiles"
+	cp -r "$bloomDir/DistFiles/localization" "$harvestBuildDir/DistFiles/localization"
+	cp "$bloomDir/DistFiles/BloomBlankPage.htm" "$harvestBuildDir/DistFiles/"
+	cp "$bloomDir/DistFiles/connections.dll" "$harvestBuildDir/DistFiles/"
 done

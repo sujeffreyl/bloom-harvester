@@ -749,30 +749,40 @@ namespace BloomHarvester
 					bool exitedNormally = StartAndWaitForBloomCli(bloomArguments, kCreateArtifactsTimeoutSecs * 1000, out int bloomExitCode, out string bloomStdOut, out string bloomStdErr);
 					bloomCliStopwatch.Stop();
 
+					string errorDetails = "";
 					if (exitedNormally)
 					{
-						string logMessage = $"CreateArtifacts finished in {bloomCliStopwatch.Elapsed.TotalSeconds:0.0} seconds.";
 						if (bloomExitCode == 0)
 						{
-							_logger.LogVerbose(logMessage);
+							_logger.LogVerbose($"CreateArtifacts finished successfully in {bloomCliStopwatch.Elapsed.TotalSeconds:0.0} seconds.");
 						}
 						else
 						{
 							success = false;
-							logMessage += $"\nAbnormal exit code: {bloomExitCode}.";
-							_logger.LogError(logMessage);
+							errorDetails = $"Bloom Command Line error:\nCreateArtifacts failed with exit code: {bloomExitCode}.";
 						}
 					}
 					else
 					{
 						success = false;
-						_logger.LogError($"CreateArtifacts terminated because it exceeded {kCreateArtifactsTimeoutSecs} seconds. Book Title: {components.BookTitle}.");
+						errorDetails = $"Bloom Command Line error:\nCreateArtifacts terminated because it exceeded {kCreateArtifactsTimeoutSecs} seconds. Book Title: {components.BookTitle}.";
 					}
 
-					string s3FolderLocation = $"{components.Submitter}/{components.BookGuid}";
+					if (!success)
+					{
+						// Usually better just to report these right away. If BloomCLI didn't succeed, the subsequent Upload...() methods will probably throw an exception, except it'll be more confusing because it's not directly related to the root cause anymore.
+						_logger.LogError(errorDetails);
+						errorDetails += $"\n===StandardOut===\n{bloomStdOut ?? ""}\n";
+						errorDetails += $"\n===StandardError===\n{bloomStdErr ?? ""}";
+						YouTrackIssueConnector.ReportErrorToYouTrack("Harvester BloomCLI Error", errorDetails);
+					}
+					else
+					{
+						string s3FolderLocation = $"{components.Submitter}/{components.BookGuid}";
 
-					UploadBloomDigitalArtifacts(zippedBloomDOutputPath, folderForUnzipped.FolderPath, s3FolderLocation);
-					UploadEPubArtifact(epubOutputPath, s3FolderLocation);
+						UploadBloomDigitalArtifacts(zippedBloomDOutputPath, folderForUnzipped.FolderPath, s3FolderLocation);
+						UploadEPubArtifact(epubOutputPath, s3FolderLocation);
+					}
 				}
 			}
 

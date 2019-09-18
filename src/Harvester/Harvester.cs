@@ -30,8 +30,7 @@ namespace BloomHarvester
 		private BookTransfer _transfer;
 		private HarvesterS3Client _s3UploadClient;  // Note that we upload books to a different bucket than we download them from, so we have a separate client.
 		private HarvesterOptions _options;
-		private List<Book> _failedBooks = new List<Book>();
-		private List<Book> _skippedBooks = new List<Book>();
+		private HashSet<string> _cumulativeFailedBookIdSet = new HashSet<string>();
 		private HashSet<string> _missingFonts = new HashSet<string>();
 		internal Version Version;
 		private Random _rng = new Random();
@@ -139,8 +138,9 @@ namespace BloomHarvester
 						.ThenBy(x => _rng.Next());   // Randomize within each section.
 
 					int numBooksProcessed = 0;
-					int numBooksFailed = 0;
-					int numBooksSkipped = 0;
+
+					var skippedBooks = new List<Book>();
+					var failedBooks = new List<Book>();	// Only the list from the current iteration, not the total cumulative list
 
 					foreach (var book in bookList)
 					{
@@ -153,16 +153,26 @@ namespace BloomHarvester
 
 						if (!shouldBeProcessed)
 						{
-							_skippedBooks.Add(book);
-							++numBooksSkipped;
+							skippedBooks.Add(book);
+
+							if (book.HarvestState == Parse.Model.HarvestState.Done.ToString())
+							{
+								// Something else has marked this book as no longer failed
+								_cumulativeFailedBookIdSet.Remove(book.ObjectId);
+							}
+
 							continue;
 						}
 
 						bool isSuccessful = ProcessOneBook(book);
-						if (!isSuccessful)
+						if (isSuccessful)
 						{
-							++numBooksFailed;
-							_failedBooks.Add(book);
+							// We know this book is no longer failed
+							_cumulativeFailedBookIdSet.Remove(book.ObjectId);
+						}
+						else
+						{
+							failedBooks.Add(book);
 						}
 						++numBooksProcessed;
 
@@ -176,19 +186,31 @@ namespace BloomHarvester
 					methodStopwatch.Stop();
 					Console.Out.WriteLine($"Harvest{_options.Mode} took {(methodStopwatch.ElapsedMilliseconds / 1000.0):0.0} seconds.");
 
-					if (kEnableLoggingSkippedBooks && _skippedBooks != null && _skippedBooks.Any())
+					if (kEnableLoggingSkippedBooks && skippedBooks.Any())
 					{
 						// There is a flag enabled for logging these because it can be useful to see in the development phase, but not likely to be useful when it's running normally.
-						string warningMessage = "Skipped Book ObjectIds:\n\t" + String.Join("\t", _skippedBooks.Select(x => x.ObjectId));
+						string warningMessage = "Skipped Book ObjectIds:\n\t" + String.Join("\t", skippedBooks.Select(x => x.ObjectId));
 						_logger.LogVerbose(warningMessage);
 					}
 
-					if (_failedBooks != null && _failedBooks.Any())
+					if (_cumulativeFailedBookIdSet?.Any() == true)
 					{
-						string errorMessage = "Books with errors:\n\t" + String.Join("\n\t", _failedBooks.Select(x => $"ObjectId: {x.ObjectId}.  URL: {x.BaseUrl}"));
-						_logger.LogError(errorMessage);
+						var sample = _cumulativeFailedBookIdSet.Take(10);
+						string errorMessage = $"Books with outstanding errors from previous iterations (sample of {sample.Count()}):\n\t" + String.Join("\n\t", sample.Select(id => $"ObjectId: {id}"));
+						_logger.LogInfo(errorMessage);
 					}
 
+					if (failedBooks.Any())
+					{
+						string errorMessage = "Books with errors (this iteration only):\n\t" + String.Join("\n\t", failedBooks.Select(x => $"ObjectId: {x.ObjectId}.  URL: {x.BaseUrl}"));
+						_logger.LogError(errorMessage);
+
+						_cumulativeFailedBookIdSet?.UnionWith(failedBooks.Select(x => x.ObjectId));
+					}
+
+
+					int numBooksFailed = failedBooks.Count;
+					int numBooksSkipped = skippedBooks.Count;
 					int numBooksTotal = numBooksSkipped + numBooksProcessed;
 					int numBooksSuccess = numBooksProcessed - numBooksFailed;
 					_logger.LogInfo($"Success={numBooksSuccess}, Failed={numBooksFailed}, Skipped={numBooksSkipped}, Total={numBooksTotal}.");

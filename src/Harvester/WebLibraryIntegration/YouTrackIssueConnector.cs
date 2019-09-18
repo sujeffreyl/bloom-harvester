@@ -12,7 +12,7 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 	internal class YouTrackIssueConnector
 	{
 		private static readonly string _issueTrackingBackend = "issues.bloomlibrary.org";
-		private static readonly string _youTrackProjectKeyExceptions = "BL";  // Or "SB" for Sandbox
+		private static readonly string _youTrackProjectKeyErrors = "BL";  // Or "SB" for Sandbox
 		private static readonly string _youTrackProjectKeyMissingFonts = "BH";  // Or "SB" for Sandbox
 
 		private static void ReportToYouTrack(string projectKey, string summary, string description, string consoleMessage, bool exitImmediately)
@@ -56,7 +56,7 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 			string description = GetIssueDescriptionFromException(exception, additionalDescription);
 			string consoleMessage = "Exception was:\n" + exception.ToString();
 
-			ReportToYouTrack(_youTrackProjectKeyExceptions, summary, description, consoleMessage, exitImmediately);
+			ReportToYouTrack(_youTrackProjectKeyErrors, summary, description, consoleMessage, exitImmediately);
 		}
 
 		private static string GetIssueDescriptionFromException(Exception exception, string additionalDescription)
@@ -101,6 +101,20 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 			return bldr.ToString();
 		}
 
+		public static void ReportErrorToYouTrack(string errorSummary, string errorDetails, Parse.Model.Book book = null)
+		{
+			string summary = $"[BH] Error: {errorSummary}";
+
+			string description = "";
+			if (book != null)
+			{
+				description = $"Book: {book.ObjectId ?? "null"} ({book.BaseUrl ?? "No URL"})\n";
+			}
+			description += errorDetails;
+
+			ReportToYouTrack(_youTrackProjectKeyErrors, summary, description, description, exitImmediately: false);
+		}
+
 		public static void ReportMissingFontToYouTrack(string missingFontName, string harvesterId, Parse.Model.Book book = null)
 		{
 			string summary = $"[BH] Missing Font: \"{missingFontName}\"";
@@ -117,8 +131,5 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 
 			ReportToYouTrack(_youTrackProjectKeyMissingFonts, summary, description, description, exitImmediately: false);
 		}
-		
-
-		
 	}
 }

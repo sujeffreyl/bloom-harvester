@@ -32,6 +32,11 @@ namespace BloomHarvester
 		private HashSet<string> _missingFonts = new HashSet<string>();
 		internal Version Version;
 
+		// These vars handle the application being exited while a book is still InProgress
+		private string _currentBookId = null;   // The ID of the current book for as long as that book has the "InProgress" state set on it. Should be set back to null/empty when the state is no longer "InProgress"
+		static ConsoleEventDelegate consoleExitHandler;
+		private delegate bool ConsoleEventDelegate(int eventType);
+
 		internal bool IsDebug { get; set; }
 		public string Identifier { get; set; }
 
@@ -55,6 +60,7 @@ namespace BloomHarvester
 				_logger = new AzureMonitorLogger(azureMonitorEnvironment, this.Identifier);
 			}
 
+			// Setup Parse Client and S3 Clients
 			EnvironmentSetting parseDBEnvironment = EnvironmentUtils.GetEnvOrFallback(options.ParseDBEnvironment, options.Environment);
 			_parseClient = new ParseClient(parseDBEnvironment);
 			_parseClient.Logger = _logger;
@@ -84,6 +90,10 @@ namespace BloomHarvester
 				bookDownloadStartingEvent: new Bloom.BookDownloadStartingEvent());
 
 			_s3UploadClient = new HarvesterS3Client(uploadBucketName, parseDBEnvironment, false);
+
+			// Setup a handler that is called when the console is closed
+			consoleExitHandler = new ConsoleEventDelegate(ConsoleEventCallback);
+			SetConsoleCtrlHandler(consoleExitHandler, add: true);
 		}
 
 		public void Dispose()
@@ -91,6 +101,35 @@ namespace BloomHarvester
 			_parseClient.FlushBatchableOperations();
 			_logger.Dispose();
 		}
+
+		/// <summary>
+		/// Handles control signals received by the process
+		/// https://docs.microsoft.com/en-us/windows/console/handlerroutine
+		/// </summary>
+		/// <param name="eventType"></param>
+		/// <returns>True if the event was handled by this function. False otherwise (i.e, let any subsequent handlers take a stab at it)</returns>
+		bool ConsoleEventCallback(int eventType)
+		{
+			// See https://stackoverflow.com/a/4647168 for reference
+
+			if (eventType == 2) // CTRL_CLOSE_EVENT - The console is being closed
+			{
+				// The console is being closed but it looks like we were in the middle of processing some book (which may or may not succeed if allowed to finish).
+				// Before closing, try to update the state in the database so that it's not stuck in "InProgress"
+				if (!String.IsNullOrEmpty(_currentBookId))
+				{
+					var updateOp = new BookUpdateOperation();
+					updateOp.UpdateFieldWithString(Book.kHarvestStateField, Parse.Model.HarvestState.Aborted.ToString());
+					_parseClient.UpdateObject(Book.GetStaticParseClassName(), _currentBookId, updateOp.ToJson());
+					return true;
+				}
+			}
+
+			return false;
+		}
+
+		[System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+		private static extern bool SetConsoleCtrlHandler(ConsoleEventDelegate callback, bool add);
 
 		public static void RunHarvest(HarvesterOptions options)
 		{
@@ -274,6 +313,7 @@ namespace BloomHarvester
 				initialUpdates.UpdateFieldWithJson("harvestStartedAt", startTime.ToJson());
 				if (!_options.ReadOnly)
 				{
+					_currentBookId = book.ObjectId;
 					_parseClient.UpdateObject(book.GetParseClassName(), book.ObjectId, initialUpdates.ToJson());
 				}
 
@@ -320,6 +360,7 @@ namespace BloomHarvester
 				// Write the updates
 				if (!_options.ReadOnly)
 				{
+					_currentBookId = null;
 					_parseClient.UpdateObject(book.GetParseClassName(), book.ObjectId, finalUpdates.ToJson());
 				}
 				_logger.TrackEvent("ProcessOneBook End - " + (isSuccessful ? "Success" : "Error"));
@@ -375,6 +416,12 @@ namespace BloomHarvester
 			bool isStaleState = false;
 			if (state == Parse.Model.HarvestState.InProgress)
 			{
+				if (harvestMode == HarvestMode.ForceAll)
+				{
+					reason = "PROCESS: Mode = HarvestForceAll";
+					return true;
+				}
+
 				// In general, we just skip and let whoever else is working on it do its thing to avoid any potential for getting into strange states.
 				// But if it's been "InProgress" for a suspiciously long time, it seems like it might've crashed. In that case, consider processing it.
 				TimeSpan timeDifference = DateTime.UtcNow - book.HarvestStartedAt.UtcTime;
@@ -390,10 +437,10 @@ namespace BloomHarvester
 			}
 
 
-			if (harvestMode == HarvestMode.All)
+			if (harvestMode == HarvestMode.All || harvestMode == HarvestMode.ForceAll)
 			{
 				// If settings say to process all books, this is easy. We always return true.
-				reason = "PROCESS: Mode = HarvestAll";
+				reason = $"PROCESS: Mode = Harvest{harvestMode}";
 				return true;
 			}
 			else if (harvestMode == HarvestMode.NewOrUpdatedOnly)
@@ -426,7 +473,6 @@ namespace BloomHarvester
 			}
 			else if (harvestMode == HarvestMode.Default)
 			{
-
 				Version previouslyUsedVersion = new Version(book.HarvesterMajorVersion, book.HarvesterMinorVersion);
 				switch (state)
 				{
@@ -445,6 +491,17 @@ namespace BloomHarvester
 						else
 						{
 							reason = "SKIP: Already processed succesfully.";
+							return false;
+						}
+					case Parse.Model.HarvestState.Aborted:
+						if (currentVersion >= previouslyUsedVersion)
+						{
+							reason = "PROCESS: Re-starting book that was previously aborted";
+							return true;
+						}
+						else
+						{
+							reason = "SKIP: Skipping aborted book that was previously touched by a newer version.";
 							return false;
 						}
 					case Parse.Model.HarvestState.InProgress:
@@ -692,30 +749,40 @@ namespace BloomHarvester
 					bool exitedNormally = StartAndWaitForBloomCli(bloomArguments, kCreateArtifactsTimeoutSecs * 1000, out int bloomExitCode, out string bloomStdOut, out string bloomStdErr);
 					bloomCliStopwatch.Stop();
 
+					string errorDetails = "";
 					if (exitedNormally)
 					{
-						string logMessage = $"CreateArtifacts finished in {bloomCliStopwatch.Elapsed.TotalSeconds:0.0} seconds.";
 						if (bloomExitCode == 0)
 						{
-							_logger.LogVerbose(logMessage);
+							_logger.LogVerbose($"CreateArtifacts finished successfully in {bloomCliStopwatch.Elapsed.TotalSeconds:0.0} seconds.");
 						}
 						else
 						{
 							success = false;
-							logMessage += $"\nAbnormal exit code: {bloomExitCode}.";
-							_logger.LogError(logMessage);
+							errorDetails = $"Bloom Command Line error:\nCreateArtifacts failed with exit code: {bloomExitCode}.";
 						}
 					}
 					else
 					{
 						success = false;
-						_logger.LogError($"CreateArtifacts terminated because it exceeded {kCreateArtifactsTimeoutSecs} seconds. Book Title: {components.BookTitle}.");
+						errorDetails = $"Bloom Command Line error:\nCreateArtifacts terminated because it exceeded {kCreateArtifactsTimeoutSecs} seconds. Book Title: {components.BookTitle}.";
 					}
 
-					string s3FolderLocation = $"{components.Submitter}/{components.BookGuid}";
+					if (!success)
+					{
+						// Usually better just to report these right away. If BloomCLI didn't succeed, the subsequent Upload...() methods will probably throw an exception, except it'll be more confusing because it's not directly related to the root cause anymore.
+						_logger.LogError(errorDetails);
+						errorDetails += $"\n===StandardOut===\n{bloomStdOut ?? ""}\n";
+						errorDetails += $"\n===StandardError===\n{bloomStdErr ?? ""}";
+						YouTrackIssueConnector.ReportErrorToYouTrack("Harvester BloomCLI Error", errorDetails);
+					}
+					else
+					{
+						string s3FolderLocation = $"{components.Submitter}/{components.BookGuid}";
 
-					UploadBloomDigitalArtifacts(zippedBloomDOutputPath, folderForUnzipped.FolderPath, s3FolderLocation);
-					UploadEPubArtifact(epubOutputPath, s3FolderLocation);
+						UploadBloomDigitalArtifacts(zippedBloomDOutputPath, folderForUnzipped.FolderPath, s3FolderLocation);
+						UploadEPubArtifact(epubOutputPath, s3FolderLocation);
+					}
 				}
 			}
 

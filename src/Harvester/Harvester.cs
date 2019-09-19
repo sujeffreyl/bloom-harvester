@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Web;
 using Bloom.WebLibraryIntegration;
 using BloomHarvester.LogEntries;
@@ -19,18 +20,20 @@ namespace BloomHarvester
 	// This class is responsible for coordinating the running of the application logic
 	public class Harvester : IDisposable
 	{
-		private const int kCreateArtifactsTimeoutSecs = 120;    // TODO: Maybe bump it up to 5 min (300 secs) after development stabilized
+		private const int kCreateArtifactsTimeoutSecs = 300;
 		private const int kGetFontsTimeoutSecs = 20;
+		private const int kDelayAfterEmptyRunSecs = 300;
+		private const bool kEnableLoggingSkippedBooks = false;
 
 		protected IMonitorLogger _logger;
 		private ParseClient _parseClient;
 		private BookTransfer _transfer;
 		private HarvesterS3Client _s3UploadClient;  // Note that we upload books to a different bucket than we download them from, so we have a separate client.
 		private HarvesterOptions _options;
-		private List<Book> _failedBooks = new List<Book>();
-		private List<Book> _skippedBooks = new List<Book>();
+		private HashSet<string> _cumulativeFailedBookIdSet = new HashSet<string>();
 		private HashSet<string> _missingFonts = new HashSet<string>();
 		internal Version Version;
+		private Random _rng = new Random();
 
 		// These vars handle the application being exited while a book is still InProgress
 		private string _currentBookId = null;   // The ID of the current book for as long as that book has the "InProgress" state set on it. Should be set back to null/empty when the state is no longer "InProgress"
@@ -133,7 +136,8 @@ namespace BloomHarvester
 
 		public static void RunHarvest(HarvesterOptions options)
 		{
-			Console.Out.WriteLine("Command Line Options: \n" + options.GetPrettyPrint());
+			Console.Out.WriteLine($"Command Line Options: \n" + options.GetPrettyPrint());
+			Console.Out.WriteLine();
 
 			using (Harvester harvester = new Harvester(options))
 			{
@@ -147,89 +151,145 @@ namespace BloomHarvester
 		/// </summary>
 		/// 
 		/// <param name="maxBooksToProcess"></param>
-		private bool Harvest(int maxBooksToProcess = -1, string queryWhereJson = "")
+		private void Harvest(int maxBooksToProcess = -1, string queryWhereJson = "")
 		{
-			_logger.TrackEvent("HarvestAll Start");
-			var methodStopwatch = new Stopwatch();
-			methodStopwatch.Start();
-
-			int numBooksProcessed = 0;
-			int numBooksFailed = 0;
-			int numBookSkipped = 0;
+			_logger.TrackEvent($"Harvest{_options.Mode} Start");
 
 			string additionalWhereFilters = GetQueryWhereOptimizations();
 			string combinedWhereJson = Harvester.InsertQueryWhereOptimizations(queryWhereJson, additionalWhereFilters);
 			Console.Out.WriteLine("combinedWhereJson: " + combinedWhereJson);
-			IEnumerable<Book> bookList = _parseClient.GetBooks(combinedWhereJson);
 
-			// ENHANCE: The state of the books need to be checked more frequently. By the time we get to the last book in the list, its state could've changed.
-
-			foreach (var book in bookList)
+			do
 			{
-				var status = ProcessOneBook(book);
-				switch (status)
+				try
 				{
-					case BookProcessingStatus.Failed:
-						++numBooksFailed;
-						_failedBooks.Add(book);
-						break;
-					case BookProcessingStatus.Skipped:
-						++numBookSkipped;
-						_skippedBooks.Add(book);
-						break;
-					default:
-						break;
+					Console.Out.WriteLine();
+
+					var methodStopwatch = new Stopwatch();
+					methodStopwatch.Start();
+
+					IEnumerable<Book> bookList = _parseClient.GetBooks(combinedWhereJson);
+
+					// Prioritize New books first.
+					// It would be nice to push this into the Parse query, but the "order" parameter seems to only allow sorting by a field. Can't find any info about sorting by more complicated expressions.
+					bookList = bookList.OrderByDescending(x => x.HarvestState == Parse.Model.HarvestState.New.ToString())   // TRUE (1) cases first, FALSE (0) cases second. i.e. State=New first, then everything else
+						.ThenByDescending(x => x.HarvestState == Parse.Model.HarvestState.Updated.ToString())	// State=Updated first, then everything else.
+						.ThenBy(x => _rng.Next());   // Randomize within each section.
+
+					int numBooksProcessed = 0;
+
+					var skippedBooks = new List<Book>();
+					var failedBooks = new List<Book>();	// Only the list from the current iteration, not the total cumulative list
+
+					foreach (var book in bookList)
+					{
+						// Decide if we should process it.
+						bool shouldBeProcessed = ShouldProcessBook(book, out string reason);
+						if (shouldBeProcessed || kEnableLoggingSkippedBooks)
+						{
+							_logger.LogInfo($"{book.ObjectId} - {reason}");
+						}
+
+						if (!shouldBeProcessed)
+						{
+							skippedBooks.Add(book);
+
+							if (book.HarvestState == Parse.Model.HarvestState.Done.ToString())
+							{
+								// Something else has marked this book as no longer failed
+								_cumulativeFailedBookIdSet.Remove(book.ObjectId);
+							}
+
+							continue;
+						}
+
+						bool isSuccessful = ProcessOneBook(book);
+						if (isSuccessful)
+						{
+							// We know this book is no longer failed
+							_cumulativeFailedBookIdSet.Remove(book.ObjectId);
+						}
+						else
+						{
+							failedBooks.Add(book);
+						}
+						++numBooksProcessed;
+
+						if (maxBooksToProcess > 0 && numBooksProcessed >= maxBooksToProcess)
+						{
+							break;
+						}
+					}
+
+					_parseClient.FlushBatchableOperations();
+					methodStopwatch.Stop();
+					Console.Out.WriteLine($"Harvest{_options.Mode} took {(methodStopwatch.ElapsedMilliseconds / 1000.0):0.0} seconds.");
+
+					if (kEnableLoggingSkippedBooks && skippedBooks.Any())
+					{
+						// There is a flag enabled for logging these because it can be useful to see in the development phase, but not likely to be useful when it's running normally.
+						string warningMessage = "Skipped Book ObjectIds:\n\t" + String.Join("\t", skippedBooks.Select(x => x.ObjectId));
+						_logger.LogVerbose(warningMessage);
+					}
+
+					if (_cumulativeFailedBookIdSet?.Any() == true)
+					{
+						var sample = _cumulativeFailedBookIdSet.Take(10);
+						string errorMessage = $"Books with outstanding errors from previous iterations (sample of {sample.Count()}):\n\t" + String.Join("\n\t", sample.Select(id => $"ObjectId: {id}"));
+						_logger.LogInfo(errorMessage);
+					}
+
+					if (failedBooks.Any())
+					{
+						string errorMessage = "Books with errors (this iteration only):\n\t" + String.Join("\n\t", failedBooks.Select(x => $"ObjectId: {x.ObjectId}.  URL: {x.BaseUrl}"));
+						_logger.LogError(errorMessage);
+
+						_cumulativeFailedBookIdSet?.UnionWith(failedBooks.Select(x => x.ObjectId));
+					}
+
+
+					int numBooksFailed = failedBooks.Count;
+					int numBooksSkipped = skippedBooks.Count;
+					int numBooksTotal = numBooksSkipped + numBooksProcessed;
+					int numBooksSuccess = numBooksProcessed - numBooksFailed;
+					_logger.LogInfo($"Success={numBooksSuccess}, Failed={numBooksFailed}, Skipped={numBooksSkipped}, Total={numBooksTotal}.");
+
+					if (numBooksFailed > 0)
+					{
+						double percentFailed = ((double)numBooksFailed) / numBooksTotal * 100;
+						if (percentFailed > 0 && percentFailed < 0.1)
+						{
+							percentFailed = 0.1;    // Don't round non-zero numbers down to 0. It might make the log misleading.
+						}
+						_logger.LogError($"Failures ({percentFailed:0.0}% failed)");
+					}
+
+					if (_options.Loop)
+					{
+						_logger.TrackEvent($"Harvest{_options.Mode} Loop Iteration completed.");
+
+						if (numBooksProcessed == 0)
+						{
+							var estimatedResumeTime = DateTime.Now.AddSeconds(kDelayAfterEmptyRunSecs);
+							Console.Out.WriteLine($"Waiting till: {estimatedResumeTime.ToString("h:mm:ss tt")}...");
+							Thread.Sleep(kDelayAfterEmptyRunSecs * 1000);
+						}
+						else
+						{
+#if DEBUG
+							Thread.Sleep(5);   // Just for debugging purposes to see what's going on
+#endif
+						}
+					}
+				}
+				catch (Exception e)
+				{
+					YouTrackIssueConnector.ReportExceptionToYouTrack(e, $"Unhandled exception thrown while running Harvest() function.", exitImmediately: false);
 				}
 
-				++numBooksProcessed;
+			} while (_options.Loop);
 
-				if (maxBooksToProcess > 0 && numBooksProcessed >= maxBooksToProcess)
-				{
-					break;
-				}
-			}
-
-			_parseClient.FlushBatchableOperations();
-			methodStopwatch.Stop();
-			Console.Out.WriteLine($"HarvestAll took {(methodStopwatch.ElapsedMilliseconds / 1000.0):0.0} seconds.");
-
-			bool isSuccess = true;
-
-			if (_skippedBooks != null && _skippedBooks.Any())
-			{
-				isSuccess = false;
-
-				string warningMessage = "Skipped Books:\n\t" + String.Join("\n\t", _skippedBooks.Select(x => $"ObjectId: {x.ObjectId}.  URL: {x.BaseUrl}"));
-				_logger.LogWarn(warningMessage);
-			}
-
-			if (_failedBooks != null && _failedBooks.Any())
-			{
-				isSuccess = false;
-				
-				string errorMessage = "Books with errors:\n\t" + String.Join("\n\t", _failedBooks.Select(x => $"ObjectId: {x.ObjectId}.  URL: {x.BaseUrl}"));
-				_logger.LogError(errorMessage);
-			}
-
-			if (numBookSkipped > 0)
-			{
-				double percentSkipped = ((double)numBookSkipped / numBooksProcessed * 100);
-				_logger.LogWarn($"{numBookSkipped} books skipped out of {numBooksProcessed} total ({percentSkipped:0.0}% skipped)");
-			}
-
-			if (numBooksFailed > 0)
-			{
-				double percentFailed = ((double)numBooksFailed) / numBooksProcessed * 100;
-				_logger.LogError($"Errors encounted: {numBooksFailed} books failed out of {numBooksProcessed} total ({percentFailed:0.0}% failed)");
-			}
-
-			int numBooksSuccess = numBooksProcessed - numBooksFailed - numBookSkipped;
-			double percentSuccess = ((double)numBooksSuccess) / numBooksProcessed * 100;
-			_logger.LogInfo($"Success: {numBooksSuccess} processed sucessfully out of {numBooksProcessed} total ({percentSuccess:0.0}% success)");
-
-			_logger.TrackEvent("HarvestAll End");
-
-			return isSuccess;
+			_logger.TrackEvent($"Harvest{_options.Mode} End");
 		}
 
 		internal string GetQueryWhereOptimizations()
@@ -284,24 +344,15 @@ namespace BloomHarvester
 			return jsonString;
 		}
 				
-		private BookProcessingStatus ProcessOneBook(Book book)
+		private bool ProcessOneBook(Book book)
 		{
 			bool isSuccessful = true;
 			try
 			{
-				_logger.TrackEvent("ProcessOneBook Start");
 				string message = $"Processing: {book.BaseUrl}";
-				Console.Out.WriteLine(message);
 				_logger.LogVerbose(message);
 
-				// Decide if we should process it.
-				bool shouldBeProcessed = ShouldProcessBook(book, out string reason);
-				_logger.LogInfo($"{book.ObjectId} - {reason}");
-
-				if (!shouldBeProcessed)
-				{
-					return BookProcessingStatus.Skipped;
-				}
+				_logger.TrackEvent("ProcessOneBook Start");	// After we check ShouldProcessBook
 
 				// Parse DB initial updates
 				var initialUpdates = new BookUpdateOperation();
@@ -338,7 +389,7 @@ namespace BloomHarvester
 					harvestLogEntries.AddRange(warnings);
 
 					if (_options.ReadOnly)
-						return BookProcessingStatus.Success;
+						return true;
 
 					var analyzer = BookAnalyzer.FromFolder(downloadBookDir);
 					var collectionFilePath = analyzer.WriteBloomCollection(downloadBookDir);
@@ -368,7 +419,8 @@ namespace BloomHarvester
 			catch (Exception e)
 			{
 				isSuccessful = false;
-				YouTrackIssueConnector.ReportExceptionToYouTrack(e, $"Unhandled exception thrown while processing book \"{book.BaseUrl}\"", exitImmediately: false);
+				string bookUrl = book?.BaseUrl ?? "null";
+				YouTrackIssueConnector.ReportExceptionToYouTrack(e, $"Unhandled exception thrown while processing book \"{bookUrl}\"", exitImmediately: false);
 
 				// Attempt to write to Parse that processing failed
 				if (!String.IsNullOrEmpty(book?.ObjectId))
@@ -382,12 +434,12 @@ namespace BloomHarvester
 					}
 					catch (Exception)
 					{
-						// If it fails, just let it be and throw the first exception rather than the nested exception.
+						// If it fails, just let it be and report the first exception rather than the nested exception.
 					}
 				}
 			}
 
-			return isSuccessful ? BookProcessingStatus.Success : BookProcessingStatus.Failed;
+			return isSuccessful;
 		}
 
 		private bool ShouldProcessBook(Book book, out string reason)
@@ -900,13 +952,6 @@ namespace BloomHarvester
 			parseClient.FlushBatchableOperations();
 
 			Console.Out.WriteLine($"Evnironment={parseDbEnvironment}: Sent request to update object \"{objectId}\" with harvestState={newState}");
-		}
-
-		enum BookProcessingStatus
-		{
-			Failed = 0,
-			Success = 1,
-			Skipped = 2
 		}
 	}
 }

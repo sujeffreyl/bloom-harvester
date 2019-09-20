@@ -172,8 +172,14 @@ namespace BloomHarvester
 
 					// Prioritize New books first.
 					// It would be nice to push this into the Parse query, but the "order" parameter seems to only allow sorting by a field. Can't find any info about sorting by more complicated expressions.
+					//
+					// Current assumptions are that the program is normally run in Default Mode with count=1 and loop flag set.
+					// Also that it does not take long to get the results of the Parse query or sort them.
+					// In that scenario I think it makes sense to just do a single Parse query
+					// But if assumptions change (like if usual call parameters change or it becomes expensive to retrieve all the columns from Parse), it could become worthwhile to split into multiple Parse queries.
 					bookList = bookList.OrderByDescending(x => x.HarvestState == Parse.Model.HarvestState.New.ToString())   // TRUE (1) cases first, FALSE (0) cases second. i.e. State=New first, then everything else
 						.ThenByDescending(x => x.HarvestState == Parse.Model.HarvestState.Updated.ToString())	// State=Updated first, then everything else.
+						// Enhance: Could also add another level to check whether the book's updatedTime < start time of the program. It would help in situations like where mode=all, count=1, and loop=true to ensure that every book gets processed once first before probably re-doing some books. But this is not normally needed when mode=default
 						.ThenBy(x => _rng.Next());   // Randomize within each section.
 
 					int numBooksProcessed = 0;

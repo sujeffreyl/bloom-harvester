@@ -374,6 +374,7 @@ namespace BloomHarvester
 				string urlWithoutTitle = RemoveBookTitleFromBaseUrl(decodedUrl);
 				string downloadRootDir = Path.Combine(Path.GetTempPath(), Path.Combine("BloomHarvester", this.Identifier));
 				_logger.LogVerbose("Download Dir: {0}", downloadRootDir);
+				Bloom.Program.RunningHarvesterMode = true;	// HandleDownloadWithoutProgress has a nested subcall to BloomS3Client.cs::AvoidThisFile() which looks at HarvesterMode
 				string downloadBookDir = _transfer.HandleDownloadWithoutProgress(urlWithoutTitle, downloadRootDir);
 
 				// Process the book

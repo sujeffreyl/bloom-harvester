@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -701,13 +701,22 @@ namespace BloomHarvester
 			if (areAnyFontsMissing)
 			{
 				_logger.LogWarn("Missing fonts: " + String.Join(",", missingFontsForCurrBook));
-				_missingFonts.UnionWith(missingFontsForCurrBook);
 
 				foreach (var missingFont in missingFontsForCurrBook)
 				{
 					var logEntry = new LogEntries.MissingFontError(missingFont);
 					harvestLogEntries.Add(logEntry);
-					YouTrackIssueConnector.ReportMissingFontToYouTrack(missingFont, this.Identifier, book);
+
+					if (!_missingFonts.Contains(missingFont))
+					{
+						YouTrackIssueConnector.ReportMissingFontToYouTrack(missingFont, this.Identifier, book);
+						_missingFonts.Add(missingFont);
+					}
+					else
+					{
+						// We already know that this font is missing, which means we already reported an issue to YouTrack. No need to re-report it.
+						Console.Out.WriteLine("Missing font, but no issue created because already known: " + missingFont);
+					}
 				}
 			}
 
@@ -729,7 +738,7 @@ namespace BloomHarvester
 
 				if (!success)
 				{
-					_logger.LogError("Error: Could not determine fonts from book locatedd at " + bookPath);
+					_logger.LogError("Error: Could not determine fonts from book located at " + bookPath);
 					return missingFonts;
 				}
 

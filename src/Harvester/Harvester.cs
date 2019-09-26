@@ -756,7 +756,7 @@ namespace BloomHarvester
 			var missingFonts = new List<string>();
 			foreach (var bookFontName in bookFontNames)
 			{
-				if (!computerFontNames.Contains(bookFontName))
+				if (!String.IsNullOrEmpty(bookFontName) && !computerFontNames.Contains(bookFontName))
 				{
 					missingFonts.Add(bookFontName);
 				}

@@ -22,13 +22,13 @@ namespace BloomHarvester.Logger
 			string environmentVarName = "BloomHarvesterAzureAppInsightsKeyDev";
 			if (environment == EnvironmentSetting.Test)
 			{
-				environmentVarName = Environment.GetEnvironmentVariable("BloomHarvesterAzureAppInsightsKeyTest");
+				environmentVarName = "BloomHarvesterAzureAppInsightsKeyTest";
 			}
 			else if (environment == EnvironmentSetting.Prod)
 			{
-				environmentVarName = Environment.GetEnvironmentVariable("BloomHarvesterAzureAppInsightsKeyProd");
+				environmentVarName = "BloomHarvesterAzureAppInsightsKeyProd";
 			}
-			
+
 			string instrumentationKey = Environment.GetEnvironmentVariable(environmentVarName);
 			Debug.Assert(!String.IsNullOrWhiteSpace(instrumentationKey), "Azure Instrumentation Key is invalid. Azure logging probably won't work.");
 
@@ -85,6 +85,7 @@ namespace BloomHarvester.Logger
 		public void TrackEvent(string eventName)
 		{
 			_telemetry.TrackEvent(eventName);
+			Console.Error.WriteLine($"Event: {eventName}");
 		}
 		#endregion
 
@@ -92,6 +93,7 @@ namespace BloomHarvester.Logger
 		protected void TrackTrace(SeverityLevel severityLevel, string messageFormat, params object[] args)
 		{
 			_telemetry.TrackTrace(String.Format(messageFormat, args), severityLevel);
+			Console.Error.WriteLine($"Log {severityLevel}: " + messageFormat, args);
 		}
 	}
 }

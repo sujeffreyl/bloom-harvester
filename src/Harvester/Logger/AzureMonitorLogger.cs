@@ -22,11 +22,11 @@ namespace BloomHarvester.Logger
 			string environmentVarName = "BloomHarvesterAzureAppInsightsKeyDev";
 			if (environment == EnvironmentSetting.Test)
 			{
-				environmentVarName = Environment.GetEnvironmentVariable("BloomHarvesterAzureAppInsightsKeyTest");
+				environmentVarName = "BloomHarvesterAzureAppInsightsKeyTest";
 			}
 			else if (environment == EnvironmentSetting.Prod)
 			{
-				environmentVarName = Environment.GetEnvironmentVariable("BloomHarvesterAzureAppInsightsKeyProd");
+				environmentVarName = "BloomHarvesterAzureAppInsightsKeyProd";
 			}
 
 			string instrumentationKey = Environment.GetEnvironmentVariable(environmentVarName);

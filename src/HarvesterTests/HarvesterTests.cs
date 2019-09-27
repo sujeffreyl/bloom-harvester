@@ -6,6 +6,7 @@ using NUnit.Framework;
 using BloomHarvester;
 using BloomHarvester.Parse.Model;
 using BloomHarvester.LogEntries;
+using VSUnitTesting = Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace BloomHarvesterTests
 {
@@ -232,6 +233,17 @@ namespace BloomHarvesterTests
 			bool result = RunShouldProcessBook(book, "1.1");
 
 			Assert.AreEqual(SKIP, result);
+		}
+
+		[Test]
+		public void GetMissingFonts_BookContainsEmptyStringFont_NotMarkedAsMissing()
+		{
+			IEnumerable<string> fontNamesUsedInBook = new string[] { "Arial", "" }; // Assumes that Arial is on the machine running the test
+			var invoker = new VSUnitTesting.PrivateType(typeof(Harvester));
+
+			List<string> missingFontsResult = (List<string>)(invoker.InvokeStatic("GetMissingFonts", fontNamesUsedInBook));
+
+			Assert.AreEqual(0, missingFontsResult.Count, "No missing fonts were expected.");
 		}
 
 		[Test]

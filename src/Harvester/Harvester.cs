@@ -401,7 +401,7 @@ namespace BloomHarvester
 					var analyzer = BookAnalyzer.FromFolder(downloadBookDir);
 					var collectionFilePath = analyzer.WriteBloomCollection(downloadBookDir);
 
-					isSuccessful &= CreateArtifacts(decodedUrl, downloadBookDir, collectionFilePath);
+					isSuccessful &= CreateArtifacts(decodedUrl, downloadBookDir, collectionFilePath, book.ObjectId);
 				}
 
 				// Finalize the state
@@ -426,8 +426,9 @@ namespace BloomHarvester
 			catch (Exception e)
 			{
 				isSuccessful = false;
+				string bookId = book?.ObjectId ?? "null";
 				string bookUrl = book?.BaseUrl ?? "null";
-				YouTrackIssueConnector.ReportExceptionToYouTrack(e, $"Unhandled exception thrown while processing book \"{bookUrl}\"", exitImmediately: false);
+				YouTrackIssueConnector.ReportExceptionToYouTrack(e, $"Unhandled exception thrown while processing book objectId={bookId}, baseUrl={bookUrl}", exitImmediately: false);
 
 				// Attempt to write to Parse that processing failed
 				if (!String.IsNullOrEmpty(book?.ObjectId))
@@ -796,7 +797,7 @@ namespace BloomHarvester
 			return fontFamilyDict;
 		}
 
-		private bool CreateArtifacts(string downloadUrl, string downloadBookDir, string collectionFilePath)
+		private bool CreateArtifacts(string downloadUrl, string downloadBookDir, string collectionFilePath, string bookId)
 		{
 			bool success = true;
 
@@ -817,7 +818,7 @@ namespace BloomHarvester
 					bool exitedNormally = StartAndWaitForBloomCli(bloomArguments, kCreateArtifactsTimeoutSecs * 1000, out int bloomExitCode, out string bloomStdOut, out string bloomStdErr);
 					bloomCliStopwatch.Stop();
 
-					string errorDetails = "";
+					string errorDetails = $"Book: {bookId ?? "null"}\n";
 					if (exitedNormally)
 					{
 						if (bloomExitCode == 0)
@@ -827,13 +828,13 @@ namespace BloomHarvester
 						else
 						{
 							success = false;
-							errorDetails = $"Bloom Command Line error:\nCreateArtifacts failed with exit code: {bloomExitCode}.";
+							errorDetails += $"Bloom Command Line error:\nCreateArtifacts failed with exit code: {bloomExitCode}.";
 						}
 					}
 					else
 					{
 						success = false;
-						errorDetails = $"Bloom Command Line error:\nCreateArtifacts terminated because it exceeded {kCreateArtifactsTimeoutSecs} seconds. Book Title: {components.BookTitle}.";
+						errorDetails += $"Bloom Command Line error:\nCreateArtifacts terminated because it exceeded {kCreateArtifactsTimeoutSecs} seconds. Book Title: {components.BookTitle}.";
 					}
 
 					if (!success)

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml;
 using System.Xml.Linq;
 using Bloom.web.controllers;
 using BloomHarvester;
@@ -34,8 +35,16 @@ namespace BloomHarvesterTests
 
 	        <div class='marginBox'>
 	            <div class='bloom-translationGroup bloom-trailingElement normal-style'>
+	                <div aria-describedby='qtip-0' data-hasqtip='true' class='bloom-editable bloom-content1 normal-style' contenteditable='true' lang='quc'>
+	                    False Alarm<br>
+	                </div>
+
 	                <div aria-describedby='qtip-0' data-hasqtip='true' class='bloom-editable bloom-content1 normal-style' contenteditable='true' lang='xk'>
 	                    Normal English<br>
+	                </div>
+
+	                <div aria-describedby='qtip-0' data-hasqtip='true' class='bloom-editable bloom-content1 normal-style' contenteditable='true' lang='xk'>
+	                    Some more English<br>
 	                </div>
 
 	                <div aria-describedby='qtip-1' data-hasqtip='true' class='bloom-editable bloom-content2 normal-style' contenteditable='true' lang='fr'>
@@ -69,6 +78,33 @@ namespace BloomHarvesterTests
 			_oneLanguageAnalyzer = new BookAnalyzer(oneLangHtml, meta.Replace("{0}", ""));
 
 			_threeLanguageCollection = XElement.Parse(_threeLanguageAnalyzer.BloomCollection);
+		}
+
+		[Test]
+		public void Language1Code_ConflictingLang1Codes_PicksMajority()
+		{
+			// This test setups its own test scenario. It doesn't rely on the OneTimeSetup of the class.
+			var document = new XmlDocument();
+			var rootElement = document.CreateElement("root");
+			document.AppendChild(rootElement);
+
+			var node1 = document.CreateElement("div");
+			node1.SetAttribute("class", "data-content1");
+			node1.SetAttribute("lang", "quc");
+			rootElement.AppendChild(node1);
+
+			var node2 = document.CreateElement("div");
+			node2.SetAttribute("class", "data-content1");
+			node2.SetAttribute("lang", "es");
+			rootElement.AppendChild(node2);
+
+			var node3 = document.CreateElement("div");
+			node3.SetAttribute("class", "data-content1");
+			node3.SetAttribute("lang", "es");
+			rootElement.AppendChild(node3);
+
+			var langCode = BookAnalyzer.GetBestLangCodeFromNodeList(rootElement.ChildNodes);
+			Assert.That(langCode, Is.EqualTo("es"));
 		}
 
 		[Test]

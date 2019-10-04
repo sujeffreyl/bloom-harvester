@@ -290,7 +290,16 @@ namespace BloomHarvester
 				}
 				catch (Exception e)
 				{
-					YouTrackIssueConnector.ReportExceptionToYouTrack(e, $"Unhandled exception thrown while running Harvest() function.", exitImmediately: false);
+					try
+					{
+						YouTrackIssueConnector.ReportExceptionToYouTrack(e, $"Unhandled exception thrown while running Harvest() function.", exitImmediately: false);
+					}
+					catch (Exception)
+					{
+						// There was an error in reporting the error...
+						// That's unfortunate, but we don't want to propagate another exception higher up. Because that would suspend our loop
+						Console.Error.WriteLine("Exception thrown while attempting to report exception to YouTrack");
+					}
 				}
 
 			} while (_options.Loop);

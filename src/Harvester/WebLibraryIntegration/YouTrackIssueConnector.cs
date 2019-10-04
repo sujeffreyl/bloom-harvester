@@ -50,19 +50,20 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 			return youTrackIssueId;
 		}
 
-		internal static void ReportExceptionToYouTrack(Exception exception, string additionalDescription = "", bool exitImmediately = true)
+		internal static void ReportExceptionToYouTrack(Exception exception, string additionalDescription, EnvironmentSetting environment, bool exitImmediately = true)
 		{
 			string summary = $"[BH] Exception \"{exception.Message}\"";
-			string description = GetIssueDescriptionFromException(exception, additionalDescription);
+			string description = GetIssueDescriptionFromException(exception, additionalDescription, environment);
 			string consoleMessage = "Exception was:\n" + exception.ToString();
 
 			ReportToYouTrack(_youTrackProjectKeyErrors, summary, description, consoleMessage, exitImmediately);
 		}
 
-		private static string GetIssueDescriptionFromException(Exception exception, string additionalDescription)
+		private static string GetIssueDescriptionFromException(Exception exception, string additionalDescription, EnvironmentSetting environment)
 		{
 			StringBuilder bldr = new StringBuilder();
 			bldr.AppendLine($"Error Report from Bloom Harvester on {DateTime.UtcNow.ToUniversalTime()} (UTC):");
+			bldr.AppendLine($"Environment: {environment}");
 			bldr.AppendLine(additionalDescription);
 			bldr.AppendLine();
 
@@ -101,7 +102,7 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 			return bldr.ToString();
 		}
 
-		public static void ReportErrorToYouTrack(string errorSummary, string errorDetails, Parse.Model.Book book = null)
+		public static void ReportErrorToYouTrack(string errorSummary, string errorDetails, EnvironmentSetting environment, Parse.Model.Book book = null)
 		{
 			string summary = $"[BH] Error: {errorSummary}";
 
@@ -110,12 +111,13 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 			{
 				description = $"Book: {book.ObjectId ?? "null"} ({book.BaseUrl ?? "No URL"})\n";
 			}
+			description += $"Environment: {environment}\n";
 			description += errorDetails;
 
 			ReportToYouTrack(_youTrackProjectKeyErrors, summary, description, description, exitImmediately: false);
 		}
 
-		public static void ReportMissingFontToYouTrack(string missingFontName, string harvesterId, Parse.Model.Book book = null)
+		public static void ReportMissingFontToYouTrack(string missingFontName, string harvesterId, EnvironmentSetting environment, Parse.Model.Book book = null)
 		{
 			string summary = $"[BH] Missing Font: \"{missingFontName}\"";
 
@@ -128,6 +130,7 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 			{
 				description = $"Missing font \"{missingFontName}\" referenced in book {book.ObjectId} ({book.BaseUrl}) on machine \"{harvesterId}\".";
 			}
+			description += $"Environment: {environment}\n";
 
 			ReportToYouTrack(_youTrackProjectKeyMissingFonts, summary, description, description, exitImmediately: false);
 		}

@@ -63,7 +63,7 @@ namespace BloomHarvester
 			}
 			catch (Exception e)
 			{
-				YouTrackIssueConnector.ReportExceptionToYouTrack(e, "An exception was thrown which was not handled by the program.");
+				YouTrackIssueConnector.ReportExceptionToYouTrack(e, "An exception was thrown which was not handled by the program.", EnvironmentSetting.Unknown);
 				throw;
 			}
 		}

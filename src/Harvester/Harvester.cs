@@ -27,6 +27,7 @@ namespace BloomHarvester
 
 		protected IMonitorLogger _logger;
 		private ParseClient _parseClient;
+		private EnvironmentSetting _parseDBEnvironment;
 		private BookTransfer _transfer;
 		private HarvesterS3Client _s3UploadClient;  // Note that we upload books to a different bucket than we download them from, so we have a separate client.
 		private HarvesterOptions _options;
@@ -64,13 +65,13 @@ namespace BloomHarvester
 			}
 
 			// Setup Parse Client and S3 Clients
-			EnvironmentSetting parseDBEnvironment = EnvironmentUtils.GetEnvOrFallback(options.ParseDBEnvironment, options.Environment);
-			_parseClient = new ParseClient(parseDBEnvironment);
+			_parseDBEnvironment = EnvironmentUtils.GetEnvOrFallback(options.ParseDBEnvironment, options.Environment);
+			_parseClient = new ParseClient(_parseDBEnvironment);
 			_parseClient.Logger = _logger;
 
 			string downloadBucketName;
 			string uploadBucketName;
-			switch (parseDBEnvironment)
+			switch (_parseDBEnvironment)
 			{
 				case EnvironmentSetting.Prod:
 					downloadBucketName = BloomS3Client.ProductionBucketName;
@@ -88,11 +89,11 @@ namespace BloomHarvester
 					break;
 			}
 			_transfer = new BookTransfer(_parseClient,
-				bloomS3Client: new HarvesterS3Client(downloadBucketName, parseDBEnvironment, true),
+				bloomS3Client: new HarvesterS3Client(downloadBucketName, _parseDBEnvironment, true),
 				htmlThumbnailer: null,
 				bookDownloadStartingEvent: new Bloom.BookDownloadStartingEvent());
 
-			_s3UploadClient = new HarvesterS3Client(uploadBucketName, parseDBEnvironment, false);
+			_s3UploadClient = new HarvesterS3Client(uploadBucketName, _parseDBEnvironment, false);
 
 			// Setup a handler that is called when the console is closed
 			consoleExitHandler = new ConsoleEventDelegate(ConsoleEventCallback);
@@ -292,7 +293,7 @@ namespace BloomHarvester
 				{
 					try
 					{
-						YouTrackIssueConnector.ReportExceptionToYouTrack(e, $"Unhandled exception thrown while running Harvest() function.", exitImmediately: false);
+						YouTrackIssueConnector.ReportExceptionToYouTrack(e, $"Unhandled exception thrown while running Harvest() function.", _parseDBEnvironment, exitImmediately: false);
 					}
 					catch (Exception)
 					{
@@ -437,7 +438,7 @@ namespace BloomHarvester
 				isSuccessful = false;
 				string bookId = book?.ObjectId ?? "null";
 				string bookUrl = book?.BaseUrl ?? "null";
-				YouTrackIssueConnector.ReportExceptionToYouTrack(e, $"Unhandled exception thrown while processing book objectId={bookId}, baseUrl={bookUrl}", exitImmediately: false);
+				YouTrackIssueConnector.ReportExceptionToYouTrack(e, $"Unhandled exception thrown while processing book objectId={bookId}, baseUrl={bookUrl}", _parseDBEnvironment, exitImmediately: false);
 
 				// Attempt to write to Parse that processing failed
 				if (!String.IsNullOrEmpty(book?.ObjectId))
@@ -719,7 +720,7 @@ namespace BloomHarvester
 
 					if (!_missingFonts.Contains(missingFont))
 					{
-						YouTrackIssueConnector.ReportMissingFontToYouTrack(missingFont, this.Identifier, book);
+						YouTrackIssueConnector.ReportMissingFontToYouTrack(missingFont, this.Identifier, _parseDBEnvironment, book);
 						_missingFonts.Add(missingFont);
 					}
 					else
@@ -852,7 +853,7 @@ namespace BloomHarvester
 						_logger.LogError(errorDetails);
 						errorDetails += $"\n===StandardOut===\n{bloomStdOut ?? ""}\n";
 						errorDetails += $"\n===StandardError===\n{bloomStdErr ?? ""}";
-						YouTrackIssueConnector.ReportErrorToYouTrack("Harvester BloomCLI Error", errorDetails);
+						YouTrackIssueConnector.ReportErrorToYouTrack("Harvester BloomCLI Error", errorDetails, _parseDBEnvironment);
 					}
 					else
 					{

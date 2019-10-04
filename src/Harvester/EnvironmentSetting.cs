@@ -7,11 +7,12 @@ namespace BloomHarvester
 {
 	public enum EnvironmentSetting
 	{
+		Unknown,
 		Default,
+		Local,
 		Dev,
 		Test,
-		Prod,
-		Local
+		Prod
 	}
 
 	internal class EnvironmentUtils

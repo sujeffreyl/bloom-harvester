@@ -23,16 +23,9 @@ namespace BloomHarvester
 		public BookAnalyzer(string html, string meta)
 		{
 			_dom = new HtmlDom(XmlHtmlConverter.GetXmlDomFromHtml(html, false));
-			Language1Code = _dom.SelectSingleNode(
-					"//div[contains(@class, 'bloom-editable') and contains(@class, 'bloom-content1') and @lang]")
-				?.Attributes["lang"]?.Value ?? "";
-			// Bloom defaults language 2 to en if not specified.
-			Language2Code = _dom.SelectSingleNode(
-					"//div[contains(@class, 'bloom-editable') and contains(@class, 'bloom-content2') and @lang]")
-				?.Attributes["lang"]?.Value ?? "en";
-			Language3Code = _dom.SelectSingleNode(
-					"//div[contains(@class, 'bloom-editable') and contains(@class, 'bloom-content3') and @lang]")
-				?.Attributes["lang"]?.Value ?? "";
+			Language1Code = GetBestLangCode(1) ?? "";
+			Language2Code = GetBestLangCode(2) ?? "en";
+			Language3Code = GetBestLangCode(3) ?? "";
 
 			var metaObj = DynamicJson.Parse(meta);
 			if (metaObj.IsDefined("brandingProjectName"))
@@ -50,6 +43,24 @@ namespace BloomHarvester
 			using (var writer = XmlWriter.Create(sb))
 				bloomCollectionElement.WriteTo(writer);
 			BloomCollection = sb.ToString();
+		}
+
+		/// <summary>
+		/// Gets the language code for the specified language number
+		/// </summary>
+		/// <param name="x">The language number</param>
+		/// <returns>The language code for the specified language, as determined from the bloomDataDiv. Returns null if not found.</returns>
+		private string GetBestLangCode(int x)
+		{
+			string xpathString = $"//*[@id='bloomDataDiv']/*[@data-book='contentLanguage{x}']";
+			var matchingNodes = _dom.SafeSelectNodes(xpathString);
+			if (matchingNodes.Count == 0)
+			{
+				return null;
+			}
+			var matchedNode = matchingNodes.Item(0);
+			string langCode = matchedNode.InnerText.Trim();
+			return langCode;
 		}
 
 		public static BookAnalyzer FromFolder(string bookFolder)

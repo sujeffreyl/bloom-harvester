@@ -421,6 +421,11 @@ namespace BloomHarvester
 					_currentBookId = null;
 					_parseClient.UpdateObject(book.GetParseClassName(), book.ObjectId, finalUpdates.ToJson());
 				}
+
+				// Cleanup the download directory if everything was successful.
+				// (If it failed, I guess it's fine to skip deleting it because having the download around makes debugging easier)
+				SIL.IO.RobustIO.DeleteDirectoryAndContents(downloadBookDir);
+
 				_logger.TrackEvent("ProcessOneBook End - " + (isSuccessful ? "Success" : "Error"));
 			}
 			catch (Exception e)

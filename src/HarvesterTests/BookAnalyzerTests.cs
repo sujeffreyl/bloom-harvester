@@ -28,6 +28,10 @@ namespace BloomHarvesterTests
 	</head>
 
 	<body>
+		<div id='bloomDataDiv'>
+			{0}
+		</div>
+
 		<div class='bloom-page numberedPage bloom-combinedPage imageOnBottom A5Portrait' data-page='' id='e0b1da23-9771-416f-afdf-5b92faab21c7' data-pagelineage='5dcd48df-e9ab-4a07-afd4-6a24d0398384'>
 	        <div class='pageLabel' lang='en'>
 	            Picture On Bottom
@@ -39,12 +43,12 @@ namespace BloomHarvesterTests
 	                    False Alarm<br>
 	                </div>
 
-	                <div aria-describedby='qtip-0' data-hasqtip='true' class='bloom-editable bloom-content1 normal-style' contenteditable='true' lang='xk'>
-	                    Normal English<br>
+	                <div aria-describedby='qtip-0' data-hasqtip='true' class='bloom-editable bloom-content1 normal-style' contenteditable='true' lang='quc'>
+	                    Some more False Alarm<br>
 	                </div>
 
 	                <div aria-describedby='qtip-0' data-hasqtip='true' class='bloom-editable bloom-content1 normal-style' contenteditable='true' lang='xk'>
-	                    Some more English<br>
+	                    Normal English<br>
 	                </div>
 
 	                <div aria-describedby='qtip-1' data-hasqtip='true' class='bloom-editable bloom-content2 normal-style' contenteditable='true' lang='fr'>
@@ -71,40 +75,25 @@ namespace BloomHarvesterTests
 </html>";
 			var meta = @"{""a11y_NoEssentialInfoByColor"":false,""a11y_NoTextIncludedInAnyImages"":false,""epub_HowToPublishImageDescriptions"":0,""epub_RemoveFontStyles"":false,""bookInstanceId"":""11c2c600-35af-488b-a8d6-3479edcb9217"",""suitableForMakingShells"":false,""suitableForMakingTemplates"":false,""suitableForVernacularLibrary"":true,""bloomdVersion"":0,""experimental"":false,{0}""folio"":false,""isRtl"":false,""title"":""Aeneas"",""allTitles"":""{\""en\"":\""Aeneas\"",\""es\"":\""Spanish title\""}"",""baseUrl"":null,""bookOrder"":null,""isbn"":"""",""bookLineage"":""056B6F11-4A6C-4942-B2BC-8861E62B03B3"",""downloadSource"":""ken@example.com/11c2c600-35af-488b-a8d6-3479edcb9217"",""license"":""cc-by"",""formatVersion"":""2.0"",""licenseNotes"":""Please be nice to John"",""copyright"":""Copyright © 2018, JohnT"",""credits"":"""",""tags"":[],""pageCount"":10,""languages"":[],""langPointers"":[{""__type"":""Pointer"",""className"":""language"",""objectId"":""2cy807OQoe""},{""__type"":""Pointer"",""className"":""language"",""objectId"":""VUiYTJhOyJ""},{""__type"":""Pointer"",""className"":""language"",""objectId"":""jwP3nu7XGY""}],""summary"":null,""allowUploadingToBloomLibrary"":true,""bookletMakingIsAppropriate"":true,""LeveledReaderTool"":null,""LeveledReaderLevel"":0,""country"":"""",""province"":"""",""district"":"""",""xmatterName"":null,""uploader"":{""__type"":""Pointer"",""className"":""_User"",""objectId"":""TWGrqk7NaR""},""tools"":[],""currentTool"":""talkingBookTool"",""toolboxIsOpen"":true,""author"":null,""subjects"":null,""hazards"":null,""a11yFeatures"":null,""a11yLevel"":null,""a11yCertifier"":null,""readingLevelDescription"":null,""typicalAgeRange"":null,""features"":[""blind"",""signLanguage""]}";
 			// can't use string.format here, because the metadata has braces as part of the json.
-			_threeLanguageAnalyzer = new BookAnalyzer(html, meta.Replace("{0}", @"""brandingProjectName"":""SIL-LEAD"","));
-			var twoLangHtml = html.Replace("bloom-content3 ", "");
+
+			// Insert the appropriate contentLanguageX/bloom-contentX information for the 3 types of books
+			string contentLanguage1Xml = "<div data-book='contentLanguage1' lang='*'>xk</div>";
+			string contentLanguage2Xml = @"
+			<div data-book='contentLanguage2' lang='*'>
+				fr
+			</div>";
+			string contentLanguage3Xml = "<div data-book='contentLanguage3' lang='*'>de</div>";
+
+			string threeLangHtml = String.Format(html, contentLanguage1Xml + contentLanguage2Xml + contentLanguage3Xml);
+
+			_threeLanguageAnalyzer = new BookAnalyzer(threeLangHtml, meta.Replace("{0}", @"""brandingProjectName"":""SIL-LEAD"","));
+			var twoLangHtml = String.Format(html, contentLanguage1Xml + contentLanguage2Xml).Replace("bloom-content3 ", "");
 			_twoLanguageAnalyzer = new BookAnalyzer(twoLangHtml, meta.Replace("{0}", @"""brandingProjectName"":"""","));
-			var oneLangHtml = twoLangHtml.Replace("bloom-content2 ", "");
+
+			var oneLangHtml = String.Format(html, contentLanguage1Xml).Replace("bloom-content3 ", "").Replace("bloom-content2 ", "");
 			_oneLanguageAnalyzer = new BookAnalyzer(oneLangHtml, meta.Replace("{0}", ""));
 
 			_threeLanguageCollection = XElement.Parse(_threeLanguageAnalyzer.BloomCollection);
-		}
-
-		[Test]
-		public void Language1Code_ConflictingLang1Codes_PicksMajority()
-		{
-			// This test setups its own test scenario. It doesn't rely on the OneTimeSetup of the class.
-			var document = new XmlDocument();
-			var rootElement = document.CreateElement("root");
-			document.AppendChild(rootElement);
-
-			var node1 = document.CreateElement("div");
-			node1.SetAttribute("class", "data-content1");
-			node1.SetAttribute("lang", "quc");
-			rootElement.AppendChild(node1);
-
-			var node2 = document.CreateElement("div");
-			node2.SetAttribute("class", "data-content1");
-			node2.SetAttribute("lang", "es");
-			rootElement.AppendChild(node2);
-
-			var node3 = document.CreateElement("div");
-			node3.SetAttribute("class", "data-content1");
-			node3.SetAttribute("lang", "es");
-			rootElement.AppendChild(node3);
-
-			var langCode = BookAnalyzer.GetBestLangCodeFromNodeList(rootElement.ChildNodes);
-			Assert.That(langCode, Is.EqualTo("es"));
 		}
 
 		[Test]

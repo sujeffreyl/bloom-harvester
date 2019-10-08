@@ -49,56 +49,18 @@ namespace BloomHarvester
 		/// Gets the language code for the specified language number
 		/// </summary>
 		/// <param name="x">The language number</param>
-		/// <returns>The most frequently occurring value of the "lang" attribute</returns>
+		/// <returns>The language code for the specified language, as determined from the bloomDataDiv. Returns null if not found.</returns>
 		private string GetBestLangCode(int x)
 		{
-			string xpathString = $"//div[contains(@class, 'bloom-editable') and contains(@class, 'bloom-content{x}') and @lang]";
-			string langCode = GetBestLangCodeFromNodeList(_dom.SafeSelectNodes(xpathString));
-			return langCode;
-		}
-
-		/// <summary>
-		/// Gets the most-frequently occuring lang code among the nodes in the specified node list
-		/// </summary>
-		/// <param name="nodeList"></param>
-		/// <returns>The most frequently occuring lang code. May return null</returns>
-		public static string GetBestLangCodeFromNodeList(XmlNodeList nodeList)
-		{
-			if (nodeList == null)
+			string xpathString = $"//*[@id='bloomDataDiv']/*[@data-book='contentLanguage{x}']";
+			var matchingNodes = _dom.SafeSelectNodes(xpathString);
+			if (matchingNodes.Count == 0)
 			{
 				return null;
 			}
-
-			// Get the frequency count for each language code
-			var frequencyCounts = new Dictionary<string, uint>();
-			for (int i = 0; i < nodeList.Count; ++i)
-			{
-				var xmlNode = nodeList.Item(i);
-				var lang = xmlNode.Attributes["lang"]?.Value;
-
-				if (!frequencyCounts.TryGetValue(lang, out uint count))
-				{
-					count = 0;
-				}
-				++count;
-
-				frequencyCounts[lang] = count;
-			}
-
-			// Now get the language with the maximum count
-			string langWithHighestCount = null;
-			uint highestCount = 0;
-			foreach (var kvp in frequencyCounts)
-			{
-				uint count = kvp.Value;
-				if (count > highestCount)
-				{
-					highestCount = count;
-					langWithHighestCount = kvp.Key;
-				}
-			}
-			
-			return langWithHighestCount;
+			var matchedNode = matchingNodes.Item(0);
+			string langCode = matchedNode.InnerText.Trim();
+			return langCode;
 		}
 
 		public static BookAnalyzer FromFolder(string bookFolder)

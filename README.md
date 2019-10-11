@@ -7,19 +7,19 @@ Open a command window. Navigate to the build folder under the root. Run getDepen
 Then open BloomHarvester.sln in Visual Studio
 If you want to view the logs or status in Azure Portal, you will obviously also need access to the specified resources.
 ## Setting Environment variables for runtime
-* You will need to set some or all of the following Environment variables to store some keys:
-  * BloomHarvesterAzureAppInsightsKey{Prod|Test|Dev}
-    * Initially, you can contact jeffrey_su@sil.org for the keys. Later on, you should ask alex_crum@sil.org to be added to the Azure instance, and then you can go to the Azure Portal, find the dev-harvestAppInsights/test-harvestAppInsights/harvestAppInsights resource, and copy the Instrumentation Key from there.
-  * BloomHarvesterParseAppId{Prod|Test|Dev}
-    * You can find this from Parse DB dashboard. Or contact andrew_polk@sil.org.
-  * BloomHarvesterS3[Secret]Key{Prod|Test|Dev}.
-  * BloomBooksS3[Secret]Key{Prod|Test|Dev}.
-    * Ask Alex Crum, alex_crum@sil.org. You can also ask jeffrey_su@sil.org or john_thomson@sil.org.
-    * The first set are for a user that can write to the harvester output bucket, the second set for one that can read from the bucket where it gets books.
-  * BloomHarvesterUserName
-    * harvester@bloomlibrary.org
-  * BloomHarvesterUserPassword{Prod|Test|Dev|Local}
-    * Ask jeffrey_su@sil.org or john_thomson@sil.org.
+You will need to set some or all of the following Environment variables to store some keys:
+* BloomHarvesterAzureAppInsightsKey{Prod|Test|Dev}
+  * Initially, you can contact jeffrey_su@sil.org for the keys. Later on, you should ask alex_crum@sil.org to be added to the Azure instance, and then you can go to the Azure Portal, find the dev-harvestAppInsights/test-harvestAppInsights/harvestAppInsights resource, and copy the Instrumentation Key from there.
+* BloomHarvesterParseAppId{Prod|Test|Dev}
+  * You can find this from Parse DB dashboard. Or contact andrew_polk@sil.org.
+* BloomHarvesterS3[Secret]Key{Prod|Test|Dev}.
+* BloomBooksS3[Secret]Key{Prod|Test|Dev}.
+  * Ask Alex Crum, alex_crum@sil.org. You can also ask jeffrey_su@sil.org or john_thomson@sil.org.
+  * The first set are for a user that can write to the harvester output bucket, the second set for one that can read from the bucket where it gets books.
+* BloomHarvesterUserName
+  * harvester@bloomlibrary.org
+* BloomHarvesterUserPassword{Prod|Test|Dev|Local}
+  * Ask jeffrey_su@sil.org or john_thomson@sil.org.
 ## dependency on Bloom
 We haven't yet fully automated getting all dependencies. Currently, the best approach is to build harvester, then run the copyBloomDependencies.sh script.
 - Make sure you have a BloomDesktop repository and have built it.

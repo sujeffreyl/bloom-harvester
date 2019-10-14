@@ -27,6 +27,9 @@ We haven't yet fully automated getting all dependencies. Currently, the best app
 - Run the copyBloomDependencies.sh script with the following arguments: "./copyBloomDependencies.sh [pathToBloomDesktopRepository]"
 - This script will copy some files from Bloom's output/browser and DistFiles folders into BloomHarvester's build folder.
 - You will normally only need to run this script once when you first start with a new Harvester repository. These dependencies typically won't need to be updated too often.
+
+Until we get an issue with localization files getting copied to the temp directory figured out, there is a workaround you have to use to run locally.
+Use the version of Bloom.exe you have built locally instead of the one from TeamCity. See commented lines in BloomHarvester.csproj and use those instead of the other reference for Bloom.
 ## Azure
 ### Searching for specific log text
 1. portal.azure.com

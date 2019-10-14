@@ -1,16 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
 using Bloom;
 using Bloom.Api;
 using Bloom.Book;
-using Newtonsoft.Json;
 
 namespace BloomHarvester
 {
@@ -56,11 +51,36 @@ namespace BloomHarvester
 			var matchingNodes = _dom.SafeSelectNodes(xpathString);
 			if (matchingNodes.Count == 0)
 			{
-				return null;
+				// contentLanguage2 and contentLanguage3 are only present in bilingual or trilingual books,
+				// so we fall back to getting lang 2 and 3 from the html if needed.
+				// We should never be missing contentLanguage1 (but having the fallback here is basically free).
+				return GetLanguageCodeFromHtml(x);
 			}
 			var matchedNode = matchingNodes.Item(0);
 			string langCode = matchedNode.InnerText.Trim();
 			return langCode;
+		}
+
+		private string GetLanguageCodeFromHtml(int languageNumber)
+		{
+			string classToLookFor;
+			switch (languageNumber)
+			{
+				case 1:
+					classToLookFor = "bloom-content1";
+					break;
+				case 2:
+					classToLookFor = "bloom-contentNational1";
+					break;
+				case 3:
+					classToLookFor = "bloom-contentNational2";
+					break;
+				default:
+					throw new ArgumentOutOfRangeException(nameof(languageNumber), "Must be 1, 2, or 3");
+			}
+			// We make the assumption that the bookTitle is always present and always has any relevant language
+			string xpathString = $"//div[contains(@class, '{classToLookFor}') and @data-book='bookTitle' and @lang]";
+			return _dom.SelectSingleNode(xpathString)?.Attributes["lang"]?.Value;
 		}
 
 		public static BookAnalyzer FromFolder(string bookFolder)

@@ -3,9 +3,9 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net461</TargetFramework>
-    <AssemblyVersion>1.1.0.0</AssemblyVersion>
-	<AssemblyFileVersion>1.1.0.0</AssemblyFileVersion>
-	<AssemblyInformationalVersion>1.1.0.0</AssemblyInformationalVersion>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+	<AssemblyFileVersion>2.0.0.0</AssemblyFileVersion>
+	<AssemblyInformationalVersion>2.0.0.0</AssemblyInformationalVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">

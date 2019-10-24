@@ -34,6 +34,8 @@ namespace BloomHarvester
 		//   * Request type: PUT
 		//   * Endpoint: classes/books/{OBJECTID}
 		//   * Query Parameters: {"updateSource":"bloomHarvester","harvestState":"{NEWSTATE}"}
+		//
+		// Note that --mode=forceAll allows harvester to run again regardless of the book's current state.
 		[STAThread]
 		public static void Main(string[] args)
 		{

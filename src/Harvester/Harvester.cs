@@ -864,6 +864,9 @@ namespace BloomHarvester
 					{
 						string s3FolderLocation = $"{components.Submitter}/{components.BookGuid}";
 
+						// Clear out the directory first to make sure stale artifacts get removed.
+						_s3UploadClient.DeleteDirectory(s3FolderLocation);
+
 						if (!_options.SkipUploadBloomDigitalArtifacts)
 						{
 							UploadBloomDigitalArtifacts(zippedBloomDOutputPath, folderForUnzipped.FolderPath, s3FolderLocation);

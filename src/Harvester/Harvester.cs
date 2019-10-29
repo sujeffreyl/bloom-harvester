@@ -824,7 +824,16 @@ namespace BloomHarvester
 					string zippedBloomDOutputPath = Path.Combine(folderForZipped.FolderPath, $"{components.BookTitle}.bloomd");
 					string epubOutputPath = Path.Combine(folderForZipped.FolderPath, $"{components.BookTitle}.epub");
 
-					string bloomArguments = $"createArtifacts \"--bookPath={downloadBookDir}\" \"--collectionPath={collectionFilePath}\" \"--bloomdOutputPath={zippedBloomDOutputPath}\" \"--bloomDigitalOutputPath={folderForUnzipped.FolderPath}\" \"--epubOutputPath={epubOutputPath}\"";
+					string bloomArguments = $"createArtifacts \"--bookPath={downloadBookDir}\" \"--collectionPath={collectionFilePath}\"";
+					if (!_options.SkipUploadBloomDigitalArtifacts)
+					{
+						bloomArguments += $" \"--bloomdOutputPath={zippedBloomDOutputPath}\" \"--bloomDigitalOutputPath={folderForUnzipped.FolderPath}\"";
+					}
+
+					if (!_options.SkipUploadEPub)
+					{
+						bloomArguments += $" \"--epubOutputPath={epubOutputPath}\"";
+					}
 
 					// Start a Bloom command line in a separate process
 					_logger.LogVerbose("Starting Bloom CLI process");

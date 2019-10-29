@@ -136,5 +136,10 @@ namespace BloomHarvester.WebLibraryIntegration
 				transferUtility.UploadDirectory(request);
 			}
 		}
+
+		public void DeleteDirectory(string folderKey)
+		{
+			DeleteBookData(_bucketName, folderKey);
+		}
 	}
 }

@@ -824,7 +824,16 @@ namespace BloomHarvester
 					string zippedBloomDOutputPath = Path.Combine(folderForZipped.FolderPath, $"{components.BookTitle}.bloomd");
 					string epubOutputPath = Path.Combine(folderForZipped.FolderPath, $"{components.BookTitle}.epub");
 
-					string bloomArguments = $"createArtifacts \"--bookPath={downloadBookDir}\" \"--collectionPath={collectionFilePath}\" \"--bloomdOutputPath={zippedBloomDOutputPath}\" \"--bloomDigitalOutputPath={folderForUnzipped.FolderPath}\" \"--epubOutputPath={epubOutputPath}\"";
+					string bloomArguments = $"createArtifacts \"--bookPath={downloadBookDir}\" \"--collectionPath={collectionFilePath}\"";
+					if (!_options.SkipUploadBloomDigitalArtifacts)
+					{
+						bloomArguments += $" \"--bloomdOutputPath={zippedBloomDOutputPath}\" \"--bloomDigitalOutputPath={folderForUnzipped.FolderPath}\"";
+					}
+
+					if (!_options.SkipUploadEPub)
+					{
+						bloomArguments += $" \"--epubOutputPath={epubOutputPath}\"";
+					}
 
 					// Start a Bloom command line in a separate process
 					_logger.LogVerbose("Starting Bloom CLI process");
@@ -864,8 +873,18 @@ namespace BloomHarvester
 					{
 						string s3FolderLocation = $"{components.Submitter}/{components.BookGuid}";
 
-						UploadBloomDigitalArtifacts(zippedBloomDOutputPath, folderForUnzipped.FolderPath, s3FolderLocation);
-						UploadEPubArtifact(epubOutputPath, s3FolderLocation);
+						// Clear out the directory first to make sure stale artifacts get removed.
+						_s3UploadClient.DeleteDirectory(s3FolderLocation);
+
+						if (!_options.SkipUploadBloomDigitalArtifacts)
+						{
+							UploadBloomDigitalArtifacts(zippedBloomDOutputPath, folderForUnzipped.FolderPath, s3FolderLocation);
+						}
+
+						if (!_options.SkipUploadEPub)
+						{
+							UploadEPubArtifact(epubOutputPath, s3FolderLocation);
+						}
 					}
 				}
 			}

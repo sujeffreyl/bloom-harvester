@@ -985,5 +985,89 @@ namespace BloomHarvester
 
 			Console.Out.WriteLine($"Evnironment={parseDbEnvironment}: Sent request to update object \"{objectId}\" with harvestState={newState}");
 		}
+
+		internal static void GenerateProcessedFilesTSV(GenerateProcessedFilesTSVOptions options)
+		{
+			var harvesterOptions = new HarvesterOptions()
+			{
+				QueryWhere = options.QueryWhere,
+				ParseDBEnvironment = options.ParseDBEnvironment,
+				Environment = options.Environment,
+				SuppressLogs = true
+			};
+
+			using (Harvester harvester = new Harvester(harvesterOptions))
+			{
+
+				string downloadBucketName;
+				string uploadBucketName;
+				string bloomLibrarySite = "bloomlibrary.org";
+				switch (options.ParseDBEnvironment)
+				{
+					case EnvironmentSetting.Prod:
+						downloadBucketName = BloomS3Client.ProductionBucketName;
+						uploadBucketName = HarvesterS3Client.HarvesterProductionBucketName;
+						break;
+					case EnvironmentSetting.Test:
+						downloadBucketName = BloomS3Client.UnitTestBucketName;
+						uploadBucketName = HarvesterS3Client.HarvesterUnitTestBucketName;
+						break;
+					case EnvironmentSetting.Dev:
+					case EnvironmentSetting.Local:
+					default:
+						downloadBucketName = BloomS3Client.SandboxBucketName;
+						uploadBucketName = HarvesterS3Client.HarvesterSandboxBucketName;
+						bloomLibrarySite = "dev.bloomlibrary.org";
+						break;
+				}
+
+				var bloomS3Client = new HarvesterS3Client(downloadBucketName, options.ParseDBEnvironment, true);
+
+				IEnumerable<Book> bookList = harvester._parseClient.GetBooks(options.QueryWhere);
+
+				using (StreamWriter sw = new StreamWriter(options.OutputPath))
+				{
+					foreach (var book in bookList)
+					{
+						Console.Out.WriteLine(book.BaseUrl);
+						string decodedUrl = HttpUtility.UrlDecode(book.BaseUrl);
+						string urlWithoutTitle = RemoveBookTitleFromBaseUrl(decodedUrl);
+						const string BloomS3UrlPrefix = "https://s3.amazonaws.com/";
+						var bookOrder = urlWithoutTitle.Substring(BloomS3UrlPrefix.Length);
+						var index = bookOrder.IndexOf('/');
+						var bucket = bookOrder.Substring(0, index);
+						var folder = bookOrder.Substring(index + 1);
+
+						string langCode = "";
+						string langName = "";
+						if (book.LangPointers != null && book.LangPointers.Length > 0)
+						{
+							var pointer = book.LangPointers.First();
+							var langId = pointer.ObjectId;
+							var response= harvester._parseClient.GetLanguage(langId);
+							langCode = response.isoCode;
+							langName = response.name;
+						}
+
+						string bloomLibraryUrl = $"https://{bloomLibrarySite}/browse/detail/{book.ObjectId}";
+
+						string pdfUrl = bloomS3Client.GetFileWithExtension(folder, "pdf", book.Title);
+						pdfUrl = $"{BloomS3UrlPrefix}{bucket}/{pdfUrl}";
+
+						string ePubUrl = harvester._s3UploadClient.GetFileWithExtension(folder, "epub", book.Title);
+						if (!String.IsNullOrEmpty(ePubUrl))
+						{
+							ePubUrl = $"{BloomS3UrlPrefix}{uploadBucketName}/{ePubUrl}";
+						}
+						else
+						{
+							ePubUrl = "";
+						}
+
+						sw.WriteLine($"{book.Title}\t{langCode}\t{langName}\t{bloomLibraryUrl}\t{pdfUrl}\t{ePubUrl}");
+					}
+				}
+			}
+		}
 	}
 }

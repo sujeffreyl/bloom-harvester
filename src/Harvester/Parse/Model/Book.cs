@@ -51,6 +51,15 @@ namespace BloomHarvester.Parse.Model
 		[JsonProperty("baseUrl")]
 		public string BaseUrl;
 
+		[JsonProperty("title")]
+		public string Title;
+
+		//[JsonProperty("uploader")]
+		//public string Uploader;
+
+		[JsonProperty("langPointers")]
+		public Pointer<Language>[] LangPointers;
+
 		#endregion
 
 

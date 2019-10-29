@@ -2,7 +2,7 @@
   "profiles": {
     "BloomHarvester": {
       "commandName": "Project",
-      "commandLineArgs": "harvest --mode=default --environment=dev --parseDBEnvironment=dev --suppressLogs --count=1 --loop"
+      "commandLineArgs": "generateProcessedFilesTSV --parseDBEnvironment=Prod --environment=Prod \"--queryWhere={ \\\"tags\\\":\\\"bookshelf:Enabling Writers Workshops/Nepal_World Education\\\"}\"  \"--outputPath=C:/Users/SuJ/Desktop/processedFiles.txt\""
     }
   }
 }

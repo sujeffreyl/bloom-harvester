@@ -46,7 +46,7 @@ namespace BloomHarvester
 
 			try
 			{
-				parser.ParseArguments<HarvesterOptions, UpdateStateInParseOptions>(args)
+				parser.ParseArguments<HarvesterOptions, UpdateStateInParseOptions, GenerateProcessedFilesTSVOptions>(args)
 					.WithParsed<HarvesterOptions>(options =>
 					{
 						Harvester.RunHarvest(options);
@@ -54,6 +54,10 @@ namespace BloomHarvester
 					.WithParsed<UpdateStateInParseOptions>(options =>
 					{
 						Harvester.UpdateHarvesterState(options.ParseDBEnvironment, options.ObjectId, options.NewState);
+					})
+					.WithParsed<GenerateProcessedFilesTSVOptions>(options =>
+					{
+						Harvester.GenerateProcessedFilesTSV(options);
 					})
 					.WithNotParsed(errors =>
 					{
@@ -123,5 +127,21 @@ namespace BloomHarvester
 
 		[Option("newState", Required = true, HelpText = "The new state to set it to")]
 		public Parse.Model.HarvestState NewState { get; set; }
+	}
+
+	[Verb("generateProcessedFilesTSV", HelpText = "Generates a TSV file containing the processed files")]
+	public class GenerateProcessedFilesTSVOptions
+	{
+		[Option('e', "environment", Required = false, Default = EnvironmentSetting.Dev, HelpText = "Sets all environments to read/write from. Valid values are Default, Dev, Test, or Prod. If any individual component's environment are set to non-default, that value will take precedence over this.")]
+		public EnvironmentSetting Environment { get; set; }
+
+		[Option("parseDBEnvironment", Required = false, Default = EnvironmentSetting.Default, HelpText = "Sets the environment to read/write from Parse DB. Valid values are Default, Dev, Test, or Prod. If specified (to non-Default), takes precedence over the general 'environment' option.")]
+		public EnvironmentSetting ParseDBEnvironment { get; set; }
+
+		[Option("queryWhere", Required = false, Default = "", HelpText = "If specified, adds a WHERE clause to the request query when retrieving the list of books to process. This should be in the JSON format used by Parse REST API to pass WHERE clauses. See https://docs.parseplatform.org/rest/guide/#query-constraints")]
+		public string QueryWhere { get; set; }
+
+		[Option("outputPath", Required = true, HelpText = "Location of the output file")]
+		public string OutputPath { get; set; }
 	}
 }

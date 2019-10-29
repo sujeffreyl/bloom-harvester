@@ -9,6 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using L10NSharp;
+using Amazon.S3.Model;
 
 namespace BloomHarvester.WebLibraryIntegration
 {
@@ -135,6 +136,33 @@ namespace BloomHarvester.WebLibraryIntegration
 				// Enhance: Could call the BloomDesktop code directly in future if desired.
 				transferUtility.UploadDirectory(request);
 			}
+		}
+
+		public string GetFileWithExtension(string bookFolder, string extension, string idealBaseName="")
+		{
+			var s3 = GetAmazonS3(_bucketName);
+			var request = new ListObjectsV2Request();
+			request.BucketName = _bucketName;
+			request.Prefix = bookFolder;
+
+			var response = s3.ListObjectsV2(request);
+
+			string idealFileName = $"{idealBaseName}.{extension}".ToLowerInvariant();
+			var idealTargets = response.S3Objects.Where(x => x.Key.ToLowerInvariant() == idealFileName);
+			if (idealTargets.Any())
+			{
+				return idealTargets.First().Key;
+			}
+
+			foreach (var item in response.S3Objects)
+			{
+				if (item.Key.ToLowerInvariant().EndsWith($".{extension}".ToLowerInvariant()))
+				{
+					return item.Key;
+				}
+			}
+
+			return null;
 		}
 	}
 }

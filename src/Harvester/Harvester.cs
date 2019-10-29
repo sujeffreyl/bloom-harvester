@@ -864,8 +864,15 @@ namespace BloomHarvester
 					{
 						string s3FolderLocation = $"{components.Submitter}/{components.BookGuid}";
 
-						UploadBloomDigitalArtifacts(zippedBloomDOutputPath, folderForUnzipped.FolderPath, s3FolderLocation);
-						UploadEPubArtifact(epubOutputPath, s3FolderLocation);
+						if (!_options.SkipUploadBloomDigitalArtifacts)
+						{
+							UploadBloomDigitalArtifacts(zippedBloomDOutputPath, folderForUnzipped.FolderPath, s3FolderLocation);
+						}
+
+						if (!_options.SkipUploadEPub)
+						{
+							UploadEPubArtifact(epubOutputPath, s3FolderLocation);
+						}
 					}
 				}
 			}

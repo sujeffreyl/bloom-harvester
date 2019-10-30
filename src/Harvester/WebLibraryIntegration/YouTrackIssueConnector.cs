@@ -52,7 +52,7 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 
 		internal static void ReportExceptionToYouTrack(Exception exception, string additionalDescription, EnvironmentSetting environment, bool exitImmediately = true)
 		{
-			string summary = $"[BH] Exception \"{exception.Message}\"";
+			string summary = $"[BH] [{environment}] Exception \"{exception.Message}\"";
 			string description = GetIssueDescriptionFromException(exception, additionalDescription, environment);
 			string consoleMessage = "Exception was:\n" + exception.ToString();
 
@@ -104,7 +104,7 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 
 		public static void ReportErrorToYouTrack(string errorSummary, string errorDetails, EnvironmentSetting environment, Parse.Model.Book book = null)
 		{
-			string summary = $"[BH] Error: {errorSummary}";
+			string summary = $"[BH] [{environment}] Error: {errorSummary}";
 
 			string description = "";
 			if (book != null)
@@ -119,7 +119,7 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 
 		public static void ReportMissingFontToYouTrack(string missingFontName, string harvesterId, EnvironmentSetting environment, Parse.Model.Book book = null)
 		{
-			string summary = $"[BH] Missing Font: \"{missingFontName}\"";
+			string summary = $"[BH] [{environment}] Missing Font: \"{missingFontName}\"";
 
 			string description;
 			if (book == null)

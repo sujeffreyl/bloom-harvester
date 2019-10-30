@@ -120,7 +120,6 @@ namespace BloomHarvester
 		public string Language2Code { get; }
 		public string Language3Code { get; set; }
 		public string Branding { get; }
-		public string SubscriptionCode { get; }
 
 		/// <summary>
 		/// The content appropriate to a skeleton BookCollection file for this book.
@@ -130,47 +129,31 @@ namespace BloomHarvester
 		/// <summary>
 		/// For now, we assume that generated Bloom Reader books are always suitable.
 		/// </summary>
-		/// <remarks>
-		/// Should we check that desired fonts are available?  The format of the book?
-		/// </remarks>
 		public bool IsBloomReaderSuitable()
 		{
 			return true;
 		}
 
 		/// <summary>
-		/// Our simplistic check for ePUB suitability is that all of the content pages are based on
-		/// the standard (and unmodified) "Basic Text & Picture" template page.
+		/// Our simplistic check for ePUB suitability is that all of the content pages
+		/// have 0 or 1 each of images, text boxes, and/or videos
 		/// </summary>
-		/// <remarks>
-		/// Should we check that desired fonts are available?  The format of the book?
-		/// </remarks>
 		public bool IsEpubSuitable()
 		{
 			int goodPages = 0;
-			foreach (var div in _dom.SafeSelectNodes("//div[contains(concat(' ', @class, ' '),' numberedPage ')]/div[contains(@class,'pageLabel')]").Cast<XmlElement> ().ToList ())
+			foreach (var div in _dom.SafeSelectNodes("//div[contains(concat(' ', @class, ' '),' numberedPage ')]").Cast<XmlElement> ().ToList ())
 			{
-				if (div.GetAttribute("data-i18n") != "TemplateBooks.PageLabel.Basic Text & Picture")
+				var imageContainers = div.SafeSelectNodes("div[contains(@class,'marginBox')]//div[contains(@class,'bloom-imageContainer')]");
+				if (imageContainers.Count > 1)
 					return false;
-				// The following checks may not be foolproof, but they give a good indication that
-				// the basic structure of the standard Text & Picture page is still in place.
-				var divTop = div.SafeSelectNodes("following-sibling::div[contains(@class,'marginBox')]//div[contains(@class,'position-top')]//div[contains(@class,'bloom-imageContainer')]");
-				if (divTop.Count != 1)
+
+				// Count any translation group which is not an image description
+				var translationGroups = div.SafeSelectNodes("div[contains(@class,'marginBox')]//div[contains(@class,'bloom-translationGroup') and not(contains(@class,'bloom-imageDescription'))]");
+				if (translationGroups.Count > 1)
 					return false;
-				var divBottom = div.SafeSelectNodes("following-sibling::div[contains(@class,'marginBox')]//div[contains(@class,'position-bottom')]//div[contains(@class,'bloom-translationGroup')]");
-				if (divBottom.Count != 1)
-					return false;
-				var divImages = div.SafeSelectNodes("following-sibling::div[contains(@class,'marginBox')]//div[contains(@class,'bloom-imageContainer')]");
-				if (divImages.Count != 1)
-					return false;
-				var video = div.SafeSelectNodes("following-sibling::div[contains(@class,'marginBox')]//video");
-				if (video.Count != 0)
-					return false;
-				var divInner = div.SafeSelectNodes("following-sibling::div[contains(@class,'marginBox')]//div[contains(@class,'split-pane-component-inner')]");
-				if (divInner.Count != 2)
-					return false;
-				var divDivider = div.SafeSelectNodes("following-sibling::div[contains(@class,'marginBox')]//div[contains(@class,'split-pane-divider') and contains(@class,'horizontal-divider')]");
-				if (divDivider.Count != 1)
+
+				var videos = div.SafeSelectNodes("following-sibling::div[contains(@class,'marginBox')]//video");
+				if (videos.Count > 1)
 					return false;
 				++goodPages;
 			}

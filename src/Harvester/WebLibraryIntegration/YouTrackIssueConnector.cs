@@ -12,7 +12,7 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 	internal class YouTrackIssueConnector
 	{
 		private static readonly string _issueTrackingBackend = "issues.bloomlibrary.org";
-		private static readonly string _youTrackProjectKeyErrors = "BL";  // Or "SB" for Sandbox
+		private static readonly string _youTrackProjectKeyErrors = "BH";  // Or "SB" for Sandbox
 		private static readonly string _youTrackProjectKeyMissingFonts = "BH";  // Or "SB" for Sandbox
 
 		private static void ReportToYouTrack(string projectKey, string summary, string description, string consoleMessage, bool exitImmediately)

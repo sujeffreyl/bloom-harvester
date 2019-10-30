@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using L10NSharp;
 using Amazon.S3.Model;
+using System.Web;
 
 namespace BloomHarvester.WebLibraryIntegration
 {
@@ -41,6 +42,22 @@ namespace BloomHarvester.WebLibraryIntegration
 			yield return HarvesterProductionBucketName;
 			yield return HarvesterSandboxBucketName;
 			yield return HarvesterUnitTestBucketName;
+		}
+
+		internal static string GetBloomS3UrlPrefix()
+		{
+			return "https://s3.amazonaws.com/";
+		}
+
+		internal static string RemoveSiteAndBucketFromUrl(string url)
+		{
+			string decodedUrl = HttpUtility.UrlDecode(url);
+			string urlWithoutTitle = Harvester.RemoveBookTitleFromBaseUrl(decodedUrl);			
+			var bookOrder = urlWithoutTitle.Substring(GetBloomS3UrlPrefix().Length);
+			var index = bookOrder.IndexOf('/');
+			var folder = bookOrder.Substring(index + 1);
+
+			return folder;
 		}
 
 		protected override IAmazonS3 CreateAmazonS3Client(string bucketName, AmazonS3Config s3Config)

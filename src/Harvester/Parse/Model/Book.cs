@@ -54,11 +54,14 @@ namespace BloomHarvester.Parse.Model
 		[JsonProperty("title")]
 		public string Title;
 
-		//[JsonProperty("uploader")]
-		//public string Uploader;
+		[JsonProperty("inCirculation")]
+		public bool? IsInCirculation;
 
 		[JsonProperty("langPointers")]
-		public Pointer<Language>[] LangPointers;
+		public Language[] Languages;
+
+		[JsonProperty("uploader")]
+		public User Uploader;
 
 		#endregion
 

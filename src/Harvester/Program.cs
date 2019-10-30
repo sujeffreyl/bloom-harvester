@@ -53,11 +53,11 @@ namespace BloomHarvester
 					})
 					.WithParsed<UpdateStateInParseOptions>(options =>
 					{
-						Harvester.UpdateHarvesterState(options.ParseDBEnvironment, options.ObjectId, options.NewState);
+						Harvester.RunUpdateHarvesterState(options.ParseDBEnvironment, options.ObjectId, options.NewState);
 					})
 					.WithParsed<GenerateProcessedFilesTSVOptions>(options =>
 					{
-						Harvester.GenerateProcessedFilesTSV(options);
+						Harvester.RunGenerateProcessedFilesTSV(options);
 					})
 					.WithNotParsed(errors =>
 					{

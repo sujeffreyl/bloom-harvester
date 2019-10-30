@@ -3,24 +3,22 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace BloomHarvester.Parse.Model
 {
 	[JsonObject(MemberSerialization = MemberSerialization.OptIn)]
-	public class Language : ParseObject
+	public class User : ParseObject
 	{
-		[JsonProperty("isoCode")]
-		public string IsoCode { get; set; }
+		//[JsonProperty("username"]
+		//public string UserName;
 
-		[JsonProperty("ethnologueCode")]
-		public string EthnologueCode { get; set; }
-
-		[JsonProperty("name")]
-		public string Name { get; set; }
+		// Enhance: Add more fields as needed.
+		// But, for user information, better to utilize as little as needed
 
 		internal override string GetParseClassName()
 		{
-			return "language";
+			return "User";
 		}
 	}
 }

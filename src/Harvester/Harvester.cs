@@ -29,6 +29,9 @@ namespace BloomHarvester
 		private ParseClient _parseClient;
 		private EnvironmentSetting _parseDBEnvironment;
 		private BookTransfer _transfer;
+		private string _downloadBucketName;
+		private string _uploadBucketName;
+		private HarvesterS3Client _bloomS3Client;
 		private HarvesterS3Client _s3UploadClient;  // Note that we upload books to a different bucket than we download them from, so we have a separate client.
 		private HarvesterOptions _options;
 		private HashSet<string> _cumulativeFailedBookIdSet = new HashSet<string>();
@@ -69,31 +72,30 @@ namespace BloomHarvester
 			_parseClient = new ParseClient(_parseDBEnvironment);
 			_parseClient.Logger = _logger;
 
-			string downloadBucketName;
-			string uploadBucketName;
 			switch (_parseDBEnvironment)
 			{
 				case EnvironmentSetting.Prod:
-					downloadBucketName = BloomS3Client.ProductionBucketName;
-					uploadBucketName = HarvesterS3Client.HarvesterProductionBucketName;
+					_downloadBucketName = BloomS3Client.ProductionBucketName;
+					_uploadBucketName = HarvesterS3Client.HarvesterProductionBucketName;
 					break;
 				case EnvironmentSetting.Test:
-					downloadBucketName = BloomS3Client.UnitTestBucketName;
-					uploadBucketName = HarvesterS3Client.HarvesterUnitTestBucketName;
+					_downloadBucketName = BloomS3Client.UnitTestBucketName;
+					_uploadBucketName = HarvesterS3Client.HarvesterUnitTestBucketName;
 					break;
 				case EnvironmentSetting.Dev:
 				case EnvironmentSetting.Local:
 				default:
-					downloadBucketName = BloomS3Client.SandboxBucketName;
-					uploadBucketName = HarvesterS3Client.HarvesterSandboxBucketName;
+					_downloadBucketName = BloomS3Client.SandboxBucketName;
+					_uploadBucketName = HarvesterS3Client.HarvesterSandboxBucketName;
 					break;
 			}
+			_bloomS3Client = new HarvesterS3Client(_downloadBucketName, _parseDBEnvironment, true);
 			_transfer = new BookTransfer(_parseClient,
-				bloomS3Client: new HarvesterS3Client(downloadBucketName, _parseDBEnvironment, true),
+				bloomS3Client: _bloomS3Client,
 				htmlThumbnailer: null,
 				bookDownloadStartingEvent: new Bloom.BookDownloadStartingEvent());
 
-			_s3UploadClient = new HarvesterS3Client(uploadBucketName, _parseDBEnvironment, false);
+			_s3UploadClient = new HarvesterS3Client(_uploadBucketName, _parseDBEnvironment, false);
 
 			// Setup a handler that is called when the console is closed
 			consoleExitHandler = new ConsoleEventDelegate(ConsoleEventCallback);
@@ -479,6 +481,21 @@ namespace BloomHarvester
 		public static bool ShouldProcessBook(Book book, HarvestMode harvestMode, Version currentVersion, out string reason)
 		{
 			Debug.Assert(book != null, "ShouldProcessBook(): Book was null");
+
+			// Note: Beware, IsInCirculation can also be null, and we DO want to process books where it is true
+			if (book.IsInCirculation == false)
+			{
+				if (harvestMode == HarvestMode.ForceAll)
+				{
+					reason = "PROCESS: Mode = HarvestForceAll";
+					return true;
+				}
+				else
+				{
+					reason = "SKIP: Not in circulation";
+					return false;
+				}
+			}
 
 			if (!Enum.TryParse(book.HarvestState, out Parse.Model.HarvestState state))
 			{
@@ -973,7 +990,7 @@ namespace BloomHarvester
 		/// 
 		/// But executing this function allows you to set it to a value other than "Updated"
 		/// </summary>
-		internal static void UpdateHarvesterState(EnvironmentSetting parseDbEnvironment, string objectId, Parse.Model.HarvestState newState)
+		internal static void RunUpdateHarvesterState(EnvironmentSetting parseDbEnvironment, string objectId, Parse.Model.HarvestState newState)
 		{
 			var updateOp = new BookUpdateOperation();
 			updateOp.UpdateFieldWithString(Book.kHarvestStateField, newState.ToString());
@@ -986,7 +1003,7 @@ namespace BloomHarvester
 			Console.Out.WriteLine($"Evnironment={parseDbEnvironment}: Sent request to update object \"{objectId}\" with harvestState={newState}");
 		}
 
-		internal static void GenerateProcessedFilesTSV(GenerateProcessedFilesTSVOptions options)
+		internal static void RunGenerateProcessedFilesTSV(GenerateProcessedFilesTSVOptions options)
 		{
 			var harvesterOptions = new HarvesterOptions()
 			{
@@ -998,74 +1015,57 @@ namespace BloomHarvester
 
 			using (Harvester harvester = new Harvester(harvesterOptions))
 			{
+				harvester.GenerateProcessedFilesTSV(options.OutputPath);
+			}
+		}
 
-				string downloadBucketName;
-				string uploadBucketName;
-				string bloomLibrarySite = "bloomlibrary.org";
-				switch (options.ParseDBEnvironment)
+		private void GenerateProcessedFilesTSV(string outputPath)
+		{
+			string bloomLibrarySite = "bloomlibrary.org";
+			if (_options.ParseDBEnvironment == EnvironmentSetting.Dev)
+			{
+				bloomLibrarySite = "dev." + bloomLibrarySite;
+			}
+
+			IEnumerable<Book> bookList = _parseClient.GetBooks(_options.QueryWhere);
+
+			using (StreamWriter sw = new StreamWriter(outputPath))
+			{
+				foreach (var book in bookList)
 				{
-					case EnvironmentSetting.Prod:
-						downloadBucketName = BloomS3Client.ProductionBucketName;
-						uploadBucketName = HarvesterS3Client.HarvesterProductionBucketName;
-						break;
-					case EnvironmentSetting.Test:
-						downloadBucketName = BloomS3Client.UnitTestBucketName;
-						uploadBucketName = HarvesterS3Client.HarvesterUnitTestBucketName;
-						break;
-					case EnvironmentSetting.Dev:
-					case EnvironmentSetting.Local:
-					default:
-						downloadBucketName = BloomS3Client.SandboxBucketName;
-						uploadBucketName = HarvesterS3Client.HarvesterSandboxBucketName;
-						bloomLibrarySite = "dev.bloomlibrary.org";
-						break;
-				}
-
-				var bloomS3Client = new HarvesterS3Client(downloadBucketName, options.ParseDBEnvironment, true);
-
-				IEnumerable<Book> bookList = harvester._parseClient.GetBooks(options.QueryWhere);
-
-				using (StreamWriter sw = new StreamWriter(options.OutputPath))
-				{
-					foreach (var book in bookList)
+					if (book.IsInCirculation == false)
 					{
-						Console.Out.WriteLine(book.BaseUrl);
-						string decodedUrl = HttpUtility.UrlDecode(book.BaseUrl);
-						string urlWithoutTitle = RemoveBookTitleFromBaseUrl(decodedUrl);
-						const string BloomS3UrlPrefix = "https://s3.amazonaws.com/";
-						var bookOrder = urlWithoutTitle.Substring(BloomS3UrlPrefix.Length);
-						var index = bookOrder.IndexOf('/');
-						var bucket = bookOrder.Substring(0, index);
-						var folder = bookOrder.Substring(index + 1);
-
-						string langCode = "";
-						string langName = "";
-						if (book.LangPointers != null && book.LangPointers.Length > 0)
-						{
-							var pointer = book.LangPointers.First();
-							var langId = pointer.ObjectId;
-							var response= harvester._parseClient.GetLanguage(langId);
-							langCode = response.isoCode;
-							langName = response.name;
-						}
-
-						string bloomLibraryUrl = $"https://{bloomLibrarySite}/browse/detail/{book.ObjectId}";
-
-						string pdfUrl = bloomS3Client.GetFileWithExtension(folder, "pdf", book.Title);
-						pdfUrl = $"{BloomS3UrlPrefix}{bucket}/{pdfUrl}";
-
-						string ePubUrl = harvester._s3UploadClient.GetFileWithExtension(folder, "epub", book.Title);
-						if (!String.IsNullOrEmpty(ePubUrl))
-						{
-							ePubUrl = $"{BloomS3UrlPrefix}{uploadBucketName}/{ePubUrl}";
-						}
-						else
-						{
-							ePubUrl = "";
-						}
-
-						sw.WriteLine($"{book.Title}\t{langCode}\t{langName}\t{bloomLibraryUrl}\t{pdfUrl}\t{ePubUrl}");
+						continue;
 					}
+
+					Console.Out.WriteLine(book.ObjectId);
+					string folder = HarvesterS3Client.RemoveSiteAndBucketFromUrl(book.BaseUrl);					
+
+					string langCode = "";
+					string langName = "";
+					if (book.Languages != null && book.Languages.Length > 0)
+					{
+						var language = book.Languages.First();
+						langCode = language.IsoCode;
+						langName = language.Name;
+					}
+
+					string bloomLibraryUrl = $"https://{bloomLibrarySite}/browse/detail/{book.ObjectId}";
+
+					string pdfUrl = _bloomS3Client.GetFileWithExtension(folder, "pdf", book.Title);
+					pdfUrl = $"{HarvesterS3Client.GetBloomS3UrlPrefix()}{_downloadBucketName}/{pdfUrl}";
+
+					string ePubUrl = _s3UploadClient.GetFileWithExtension(folder, "epub", book.Title);
+					if (!String.IsNullOrEmpty(ePubUrl))
+					{
+						ePubUrl = $"{HarvesterS3Client.GetBloomS3UrlPrefix()}{_uploadBucketName}/{ePubUrl}";
+					}
+					else
+					{
+						ePubUrl = "";
+					}
+
+					sw.WriteLine($"{book.Title}\t{langCode}\t{langName}\t{bloomLibraryUrl}\t{pdfUrl}\t{ePubUrl}");
 				}
 			}
 		}

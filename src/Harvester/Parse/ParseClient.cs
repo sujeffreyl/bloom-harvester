@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -347,12 +347,16 @@ namespace BloomHarvester.Parse
 		{
 			var request = new RestRequest("classes/books", Method.GET);
 			SetCommonHeaders(request);
-			request.AddParameter("keys", "object_id,baseUrl,harvestState,harvesterMajorVersion,harvesterMinorVersion,harvestLog,harvestStartedAt,title,uploader,langPointers");
+			request.AddParameter("keys", "object_id,baseUrl,harvestState,harvesterMajorVersion,harvesterMinorVersion,harvestLog,harvestStartedAt,title,inCirculation,uploader,langPointers");
 			
 			if (!String.IsNullOrEmpty(whereCondition))
 			{
 				request.AddParameter("where", whereCondition);
 			}
+
+			// Instead of representing as object pointers (and requiring us to perform a 2nd query to get the object), Parse will dereference the pointer for us automatically
+			request.AddParameter("include", "langPointers");
+			request.AddParameter("include", "uploader");	
 
 			IEnumerable<Book> results = GetAllResults<Book>(request);
 			return results;
@@ -370,10 +374,12 @@ namespace BloomHarvester.Parse
 			int totalCount = 0;
 			do
 			{
-				request.AddParameter("count", "1");
-				request.AddParameter("limit", "1000");   // The limit should probably be on the higher side. The fewer DB calls, the better, probably.
-				request.AddParameter("skip", numProcessed.ToString());
-				request.AddParameter("order", "createdAt");
+				// Make sure you don't have duplicate instances of a lot of these parameters, especially limit and skip.
+				// Parse will not give you thre results you want if you have them multiple times.
+				AddOrReplaceParameter(request, "count", "1");
+				AddOrReplaceParameter(request, "limit", "1000");   // The limit should probably be on the higher side. The fewer DB calls, the better, probably.
+				AddOrReplaceParameter(request, "order", "createdAt");
+				AddOrReplaceParameter(request, "skip", numProcessed.ToString());
 
 				Logger?.TrackEvent("ParseClient::GetAllResults Request Sent");
 				var restResponse = this.Client.Execute(request);
@@ -408,6 +414,34 @@ namespace BloomHarvester.Parse
 				}
 			}
 			while (numProcessed < totalCount);
+		}
+
+		/// <summary>
+		/// Adds the specified parameter with the specified value. If the parameter already exists, the existing value will be overwritten.
+		/// </summary>
+		/// <param name="request">The object whose Parameters field will be modified</param>
+		/// <param name="parameterName">The name of the parameter</param>
+		/// <param name="parameterValue">The new value of the parameter</param>
+		public void AddOrReplaceParameter(IRestRequest request, string parameterName, string parameterValue)
+		{
+			bool wasAdded = false;
+			if (request.Parameters != null)
+			{
+				foreach (var param in request.Parameters)
+				{
+					if (param.Name == parameterName)
+					{
+						param.Value = parameterValue;
+						wasAdded = true;
+						break;
+					}
+				}
+			}
+
+			if (!wasAdded)
+			{
+				request.AddParameter(parameterName, parameterValue);
+			}
 		}
 	}
 }

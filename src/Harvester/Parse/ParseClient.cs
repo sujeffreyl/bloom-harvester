@@ -375,7 +375,7 @@ namespace BloomHarvester.Parse
 			do
 			{
 				// Make sure you don't have duplicate instances of a lot of these parameters, especially limit and skip.
-				// Parse will not give you thre results you want if you have them multiple times.
+				// Parse will not give you the results you want if you have them multiple times.
 				AddOrReplaceParameter(request, "count", "1");
 				AddOrReplaceParameter(request, "limit", "1000");   // The limit should probably be on the higher side. The fewer DB calls, the better, probably.
 				AddOrReplaceParameter(request, "order", "createdAt");
@@ -424,7 +424,6 @@ namespace BloomHarvester.Parse
 		/// <param name="parameterValue">The new value of the parameter</param>
 		public void AddOrReplaceParameter(IRestRequest request, string parameterName, string parameterValue)
 		{
-			bool wasAdded = false;
 			if (request.Parameters != null)
 			{
 				foreach (var param in request.Parameters)
@@ -432,16 +431,13 @@ namespace BloomHarvester.Parse
 					if (param.Name == parameterName)
 					{
 						param.Value = parameterValue;
-						wasAdded = true;
-						break;
+						return;
 					}
 				}
 			}
 
-			if (!wasAdded)
-			{
-				request.AddParameter(parameterName, parameterValue);
-			}
+			// At this point, indicates that no replacements were made while iterating over the params. We'll have to add it in.
+			request.AddParameter(parameterName, parameterValue);
 		}
 	}
 }

@@ -26,14 +26,14 @@ namespace BloomHarvester
 		private const bool kEnableLoggingSkippedBooks = false;
 
 		protected IMonitorLogger _logger;
-		private ParseClient _parseClient;
+		internal ParseClient _parseClient;
 		private EnvironmentSetting _parseDBEnvironment;
 		private BookTransfer _transfer;
-		private string _downloadBucketName;
-		private string _uploadBucketName;
-		private HarvesterS3Client _bloomS3Client;
-		private HarvesterS3Client _s3UploadClient;  // Note that we upload books to a different bucket than we download them from, so we have a separate client.
-		private HarvesterOptions _options;
+		internal string _downloadBucketName;
+		internal string _uploadBucketName;
+		internal HarvesterS3Client _bloomS3Client;
+		internal HarvesterS3Client _s3UploadClient;  // Note that we upload books to a different bucket than we download them from, so we have a separate client.
+		protected HarvesterOptions _options;
 		private HashSet<string> _cumulativeFailedBookIdSet = new HashSet<string>();
 		private HashSet<string> _missingFonts = new HashSet<string>();
 		internal Version Version;
@@ -983,91 +983,5 @@ namespace BloomHarvester
 			_s3UploadClient.UploadFile(epubPath, $"{s3FolderLocation}/epub");
 		}
 
-		/// <summary>
-		/// This function is here to allow setting the harvesterState to specific values to aid in setting up specific ad-hoc testing states.
-		/// In the Parse database, there are some rules that automatically set the harvestState to "Updated" when the book is republished.
-		/// Unfortunately, this rule also kicks in when a book is modified in the Parse dashboard or via the API Console (if no updateSource is set) :(
-		/// 
-		/// But executing this function allows you to set it to a value other than "Updated"
-		/// </summary>
-		internal static void RunUpdateHarvesterState(EnvironmentSetting parseDbEnvironment, string objectId, Parse.Model.HarvestState newState)
-		{
-			var updateOp = new BookUpdateOperation();
-			updateOp.UpdateFieldWithString(Book.kHarvestStateField, newState.ToString());
-
-			EnvironmentSetting environment = EnvironmentUtils.GetEnvOrFallback(parseDbEnvironment, EnvironmentSetting.Default);
-			var parseClient = new ParseClient(environment);
-			parseClient.UpdateObject(Book.GetStaticParseClassName(), objectId, updateOp.ToJson());
-			parseClient.FlushBatchableOperations();
-
-			Console.Out.WriteLine($"Evnironment={parseDbEnvironment}: Sent request to update object \"{objectId}\" with harvestState={newState}");
-		}
-
-		internal static void RunGenerateProcessedFilesTSV(GenerateProcessedFilesTSVOptions options)
-		{
-			var harvesterOptions = new HarvesterOptions()
-			{
-				QueryWhere = options.QueryWhere,
-				ParseDBEnvironment = options.ParseDBEnvironment,
-				Environment = options.Environment,
-				SuppressLogs = true
-			};
-
-			using (Harvester harvester = new Harvester(harvesterOptions))
-			{
-				harvester.GenerateProcessedFilesTSV(options.OutputPath);
-			}
-		}
-
-		private void GenerateProcessedFilesTSV(string outputPath)
-		{
-			string bloomLibrarySite = "bloomlibrary.org";
-			if (_options.ParseDBEnvironment == EnvironmentSetting.Dev)
-			{
-				bloomLibrarySite = "dev." + bloomLibrarySite;
-			}
-
-			IEnumerable<Book> bookList = _parseClient.GetBooks(_options.QueryWhere);
-
-			using (StreamWriter sw = new StreamWriter(outputPath))
-			{
-				foreach (var book in bookList)
-				{
-					if (book.IsInCirculation == false)
-					{
-						continue;
-					}
-
-					Console.Out.WriteLine(book.ObjectId);
-					string folder = HarvesterS3Client.RemoveSiteAndBucketFromUrl(book.BaseUrl);					
-
-					string langCode = "";
-					string langName = "";
-					if (book.Languages != null && book.Languages.Length > 0)
-					{
-						var language = book.Languages.First();
-						langCode = language.IsoCode;
-						langName = language.Name;
-					}
-
-					string bloomLibraryUrl = $"https://{bloomLibrarySite}/browse/detail/{book.ObjectId}";
-
-					string pdfUrl = _bloomS3Client.GetFileWithExtension(folder, "pdf", book.Title);
-					pdfUrl = $"{HarvesterS3Client.GetBloomS3UrlPrefix()}{_downloadBucketName}/{pdfUrl}";
-
-					string ePubUrl = _s3UploadClient.GetFileWithExtension(folder, "epub", book.Title);
-					if (!String.IsNullOrEmpty(ePubUrl))
-					{
-						ePubUrl = $"{HarvesterS3Client.GetBloomS3UrlPrefix()}{_uploadBucketName}/{ePubUrl}";
-					}
-					else
-					{
-						ePubUrl = "";
-					}
-
-					sw.WriteLine($"{book.Title}\t{langCode}\t{langName}\t{bloomLibraryUrl}\t{pdfUrl}\t{ePubUrl}");
-				}
-			}
-		}
 	}
 }

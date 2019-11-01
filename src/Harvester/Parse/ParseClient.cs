@@ -343,7 +343,7 @@ namespace BloomHarvester.Parse
 		/// <summary>
 		/// Gets all rows from the Parse "books" class/table
 		/// </summary>
-		internal IEnumerable<Book> GetBooks(string whereCondition = "")
+		internal IEnumerable<Book> GetBooks(string whereCondition = "", IEnumerable<string> fieldsToDereference = null)
 		{
 			var request = new RestRequest("classes/books", Method.GET);
 			SetCommonHeaders(request);
@@ -355,8 +355,13 @@ namespace BloomHarvester.Parse
 			}
 
 			// Instead of representing as object pointers (and requiring us to perform a 2nd query to get the object), Parse will dereference the pointer for us automatically
-			request.AddParameter("include", "langPointers");
-			request.AddParameter("include", "uploader");	
+			if (fieldsToDereference != null)
+			{
+				foreach (var field in fieldsToDereference)
+				{
+					request.AddParameter("include", field);
+				}
+			}
 
 			IEnumerable<Book> results = GetAllResults<Book>(request);
 			return results;

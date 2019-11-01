@@ -38,7 +38,8 @@ namespace BloomHarvester
 				bloomLibrarySite = "dev." + bloomLibrarySite;
 			}
 
-			IEnumerable<Book> bookList = _parseClient.GetBooks(_options.QueryWhere);
+			string[] fieldsToDereference = new string[] { "langPointers", "uploader" };
+			IEnumerable<Book> bookList = _parseClient.GetBooks(_options.QueryWhere, fieldsToDereference);
 
 			using (StreamWriter sw = new StreamWriter(this.OutputPath))
 			{

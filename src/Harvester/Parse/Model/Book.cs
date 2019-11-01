@@ -13,6 +13,7 @@ namespace BloomHarvester.Parse.Model
 		public const string kHarvesterMajorVersionField = "harvesterMajorVersion";
 		public const string kHarvesterMinorVersionField = "harvesterMinorVersion";
 		public const string kHarvestLogField = "harvestLog";
+	    public const string kShowField = "show";
 
 
 		// There are many more properties from the book table that we could add when they are needed.
@@ -63,6 +64,34 @@ namespace BloomHarvester.Parse.Model
 		[JsonProperty("uploader")]
 		public User Uploader;
 
+		/// <summary>
+	    /// A json object used to limit what the Library shows the user for each book.
+	    /// For example:
+	    /// "show": {
+	    ///   "epub": {
+	    ///     "harvester": true,
+		///     "user": true,
+		///     "librarian": true,
+	    ///   },
+		///   "pdf": {
+		///     "harvester": true,
+		///     "user": false,
+		///   },
+		///   "bloomReader": {
+		///     "harvester": true,
+		///     "librarian": false,
+		///   },
+		///   "readOnline": {
+		///     "harvester": true,
+		///   }
+		/// }
+	    /// </summary>
+	    /// <remarks>
+	    /// Only the harvester values should be changed by this code!
+	    /// </remarks>
+	    [JsonProperty("show")]
+	    public dynamic Show { get; set; }
+
 		#endregion
 
 
@@ -77,5 +106,47 @@ namespace BloomHarvester.Parse.Model
 			return "books";
 		}
 
+		/// <summary>
+		/// Set the harvester evaluation for the given artifact.
+		/// Call this method only if harvester created and uploaded the given artifact.
+		/// </summary>
+	    internal void SetHarvesterEvaluation(string artifact, bool enabled)
+	    {
+			if (Show == null)
+			{
+				var jsonString = $"{{ \"{artifact}\": {{ \"harvester\": {enabled.ToString().ToLowerInvariant()} }} }}";
+				Show = JsonConvert.DeserializeObject(jsonString);
+				return;
+			}
+		    var setting = JsonConvert.DeserializeObject($"{{ \"harvester\": {enabled.ToString().ToLowerInvariant()} }}");
+			switch (artifact)
+			{
+				case "epub":
+					if (Show.epub == null)
+						Show.epub = setting;
+					else
+						Show.epub.harvester = enabled;
+					break;
+				case "pdf":
+					if (Show.pdf == null)
+						Show.pdf = setting;
+					else
+						Show.pdf.harvester = enabled;
+					break;
+				case "bloomReader":
+					if (Show.bloomReader == null)
+						Show.bloomReader = setting;
+					else
+						Show.bloomReader.harvester = enabled;
+					break;
+				case "readOnline":
+					if (Show.readOnline == null)
+						Show.readOnline = setting;
+					else
+						Show.readOnline.harvester = enabled;
+					break;
+			}
+
+		}
 	}
 }

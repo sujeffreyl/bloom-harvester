@@ -155,6 +155,11 @@ namespace BloomHarvester.WebLibraryIntegration
 			}
 		}
 
+		public void DeleteDirectory(string folderKey)
+		{
+			DeleteBookData(_bucketName, folderKey);
+		}
+
 		public string GetFileWithExtension(string bookFolder, string extension, string idealBaseName="")
 		{
 			var s3 = GetAmazonS3(_bucketName);
@@ -180,6 +185,6 @@ namespace BloomHarvester.WebLibraryIntegration
 			}
 
 			return null;
-		}
+  	}
 	}
 }

@@ -27,12 +27,15 @@ namespace BloomHarvester
 		// harvest --mode=all --environment=prod --parseDBEnvironment=prod "--queryWhere={ \"tags\":\"bookshelf:Resources for the Blind, Inc. (Philippines)\"}"
 		// harvest --mode=default --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"objectId\":{\"$in\":[\"ze17yO6jIm\",\"v4YABQJLB2\"]}}"
 		// harvest --mode=default --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"uploader\":{\"$in\":[\"SXsqpDHGKk\"]}}"
+		// harvest --mode=all --environment=dev --parseDBEnvironment=dev  --suppressLogs "--queryWhere={ \"objectId\":\"zBsLInOzWG\"}" --skipUploadBloomDigitalArtifacts
 		//
 		// updateState --parseDBEnvironment=dev --id="ze17yO6jIm" --newState="InProgress"
 		// Alternatively, you can use Parse API Console.
 		//   * Request type: PUT
 		//   * Endpoint: classes/books/{OBJECTID}
 		//   * Query Parameters: {"updateSource":"bloomHarvester","harvestState":"{NEWSTATE}"}
+		//
+		// Note that --mode=forceAll allows harvester to run again regardless of the book's current state.
 		[STAThread]
 		public static void Main(string[] args)
 		{
@@ -102,7 +105,13 @@ namespace BloomHarvester
 		public int Count { get; set; }
 
 		[Option("loop", Required = false, Default = false, HelpText = "If true, will keep re-running Harvester after it finishes.")]
-		public bool Loop{ get; set; }
+		public bool Loop { get; set; }
+
+		[Option("skipUploadBloomDigitalArtifacts", Required = false, Default = false, HelpText = "If true, will prevent the .bloomd and Bloom Digital (Read on Bloom Library) artifacts from being uploaded.")]
+		public bool SkipUploadBloomDigitalArtifacts { get; set; }
+
+		[Option("skipUploadEPub", Required = false, Default = false, HelpText = "If true, will prevent the .epub artifact from being uploaded.")]
+		public bool SkipUploadEPub { get; set; }
 
 		public virtual string GetPrettyPrint()
 		{
@@ -112,11 +121,13 @@ namespace BloomHarvester
 				$"logEnvironment: {LogEnvironment}\n" +
 				$"suppressLogs: {SuppressLogs}\n" +
 				$"queryWhere: {QueryWhere}\n" +
-				$"count: {Count}"; ;
+				$"count: {Count}\n" +
+				$"skipUploadBloomDigitalArtifacts: {SkipUploadBloomDigitalArtifacts}\n" +
+				$"skipUploadEPub: {SkipUploadEPub}";
 		}
 	}
 
-	[Verb("updateState", HelpText ="Updates the harvestState field in Parse")]
+	[Verb("updateState", HelpText = "Updates the harvestState field in Parse")]
 	public class UpdateStateInParseOptions
 	{
 		[Option("parseDBEnvironment", Required = false, Default = EnvironmentSetting.Default, HelpText = "Sets the environment to read/write from Parse DB. Valid values are Default, Dev, Test, or Prod. If specified (to non-Default), takes precedence over the general 'environment' option.")]

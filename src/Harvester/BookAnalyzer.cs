@@ -1,11 +1,13 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 using Bloom;
 using Bloom.Api;
 using Bloom.Book;
+using SIL.Xml;
 
 namespace BloomHarvester
 {
@@ -118,11 +120,44 @@ namespace BloomHarvester
 		public string Language2Code { get; }
 		public string Language3Code { get; set; }
 		public string Branding { get; }
-		public string SubscriptionCode { get; }
 
 		/// <summary>
 		/// The content appropriate to a skeleton BookCollection file for this book.
 		/// </summary>
 		public string BloomCollection { get; set; }
+
+		/// <summary>
+		/// For now, we assume that generated Bloom Reader books are always suitable.
+		/// </summary>
+		public bool IsBloomReaderSuitable()
+		{
+			return true;
+		}
+
+		/// <summary>
+		/// Our simplistic check for ePUB suitability is that all of the content pages
+		/// have 0 or 1 each of images, text boxes, and/or videos
+		/// </summary>
+		public bool IsEpubSuitable()
+		{
+			int goodPages = 0;
+			foreach (var div in _dom.SafeSelectNodes("//div[contains(concat(' ', @class, ' '),' numberedPage ')]").Cast<XmlElement> ().ToList ())
+			{
+				var imageContainers = div.SafeSelectNodes("div[contains(@class,'marginBox')]//div[contains(@class,'bloom-imageContainer')]");
+				if (imageContainers.Count > 1)
+					return false;
+
+				// Count any translation group which is not an image description
+				var translationGroups = div.SafeSelectNodes("div[contains(@class,'marginBox')]//div[contains(@class,'bloom-translationGroup') and not(contains(@class,'bloom-imageDescription'))]");
+				if (translationGroups.Count > 1)
+					return false;
+
+				var videos = div.SafeSelectNodes("following-sibling::div[contains(@class,'marginBox')]//video");
+				if (videos.Count > 1)
+					return false;
+				++goodPages;
+			}
+			return goodPages > 0;
+		}
 	}
 }

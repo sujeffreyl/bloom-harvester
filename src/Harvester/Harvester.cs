@@ -10,8 +10,10 @@ using Bloom.WebLibraryIntegration;
 using BloomHarvester.LogEntries;
 using BloomHarvester.Logger;
 using BloomHarvester.Parse;
+using BloomHarvester.Parse.Model;
 using BloomHarvester.WebLibraryIntegration;
 using BloomTemp;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Book = BloomHarvester.Parse.Model.Book;
 
@@ -414,6 +416,8 @@ namespace BloomHarvester
 					var collectionFilePath = analyzer.WriteBloomCollection(downloadBookDir);
 
 					isSuccessful &= CreateArtifacts(decodedUrl, downloadBookDir, collectionFilePath, book.ObjectId);
+					if (isSuccessful)
+						UpdateSuitabilityofArtifacts(book, analyzer);
 				}
 
 				// Finalize the state
@@ -421,6 +425,7 @@ namespace BloomHarvester
 				if (isSuccessful)
 				{
 					finalUpdates.UpdateFieldWithString(Book.kHarvestStateField, Parse.Model.HarvestState.Done.ToString());
+					finalUpdates.UpdateFieldWithJson(Book.kShowField, JsonConvert.SerializeObject(book.Show));
 				}
 				else
 				{
@@ -465,6 +470,23 @@ namespace BloomHarvester
 			}
 
 			return isSuccessful;
+		}
+
+		private void UpdateSuitabilityofArtifacts(Book book, BookAnalyzer analyzer)
+		{
+			if (!_options.SkipUploadEPub)
+			{
+				book.SetHarvesterEvaluation("epub", analyzer.IsEpubSuitable());
+			}
+
+			// harvester never makes pdfs at the moment.
+
+			if (!_options.SkipUploadBloomDigitalArtifacts)
+			{
+				var isBloomReaderGood = analyzer.IsBloomReaderSuitable();
+				book.SetHarvesterEvaluation("bloomReader", isBloomReaderGood);
+				book.SetHarvesterEvaluation("readOnline", isBloomReaderGood);
+			}
 		}
 
 		private bool ShouldProcessBook(Book book, out string reason)
@@ -841,10 +863,18 @@ namespace BloomHarvester
 					string zippedBloomDOutputPath = Path.Combine(folderForZipped.FolderPath, $"{components.BookTitle}.bloomd");
 					string epubOutputPath = Path.Combine(folderForZipped.FolderPath, $"{components.BookTitle}.epub");
 
-					string bloomArguments = $"createArtifacts \"--bookPath={downloadBookDir}\" \"--collectionPath={collectionFilePath}\" \"--bloomdOutputPath={zippedBloomDOutputPath}\" \"--bloomDigitalOutputPath={folderForUnzipped.FolderPath}\" \"--epubOutputPath={epubOutputPath}\"";
+					string bloomArguments = $"createArtifacts \"--bookPath={downloadBookDir}\" \"--collectionPath={collectionFilePath}\"";
+					if (!_options.SkipUploadBloomDigitalArtifacts)
+					{
+						bloomArguments += $" \"--bloomdOutputPath={zippedBloomDOutputPath}\" \"--bloomDigitalOutputPath={folderForUnzipped.FolderPath}\"";
+					}
+
+					if (!_options.SkipUploadEPub)
+					{
+						bloomArguments += $" \"--epubOutputPath={epubOutputPath}\"";
+					}
 
 					// Start a Bloom command line in a separate process
-					_logger.LogVerbose("Starting Bloom CLI process");
 					var bloomCliStopwatch = new Stopwatch();
 					bloomCliStopwatch.Start();
 					bool exitedNormally = StartAndWaitForBloomCli(bloomArguments, kCreateArtifactsTimeoutSecs * 1000, out int bloomExitCode, out string bloomStdOut, out string bloomStdErr);
@@ -881,8 +911,18 @@ namespace BloomHarvester
 					{
 						string s3FolderLocation = $"{components.Submitter}/{components.BookGuid}";
 
-						UploadBloomDigitalArtifacts(zippedBloomDOutputPath, folderForUnzipped.FolderPath, s3FolderLocation);
-						UploadEPubArtifact(epubOutputPath, s3FolderLocation);
+						// Clear out the directory first to make sure stale artifacts get removed.
+						_s3UploadClient.DeleteDirectory(s3FolderLocation);
+
+						if (!_options.SkipUploadBloomDigitalArtifacts)
+						{
+							UploadBloomDigitalArtifacts(zippedBloomDOutputPath, folderForUnzipped.FolderPath, s3FolderLocation);
+						}
+
+						if (!_options.SkipUploadEPub)
+						{
+							UploadEPubArtifact(epubOutputPath, s3FolderLocation);
+						}
 					}
 				}
 			}
@@ -899,8 +939,10 @@ namespace BloomHarvester
 		/// <param name="standardOutput">Out parameter. The standard output of the process.</param>
 		/// <param name="standardError">Out parameter. The standard error of the process.</param>
 		/// <returns>Returns true if the process ended by itself without timeout. Returns false if the process was forcibly terminated.</returns>
-		public static bool StartAndWaitForBloomCli(string arguments, int timeoutMilliseconds, out int exitCode, out string standardOutput, out string standardError)
+		public bool StartAndWaitForBloomCli(string arguments, int timeoutMilliseconds, out int exitCode, out string standardOutput, out string standardError)
 		{
+			_logger.LogVerbose("Starting Bloom CLI process");
+			_logger.LogVerbose("Bloom CLI arguments: " + arguments);
 			var process = new Process()
 			{
 				StartInfo = new ProcessStartInfo()
@@ -914,7 +956,7 @@ namespace BloomHarvester
 			};
 
 			StringBuilder processErrorBuffer = new StringBuilder();
-			process.ErrorDataReceived += new DataReceivedEventHandler((sender, e) => { processErrorBuffer.Append(e.Data); });			
+			process.ErrorDataReceived += new DataReceivedEventHandler((sender, e) => { processErrorBuffer.Append(e.Data); });
 
 			process.Start();
 

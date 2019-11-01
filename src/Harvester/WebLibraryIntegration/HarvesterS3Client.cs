@@ -14,7 +14,7 @@ using System.Web;
 
 namespace BloomHarvester.WebLibraryIntegration
 {
-	internal class HarvesterS3Client : BloomS3Client
+	public class HarvesterS3Client : BloomS3Client
 	{
 		public const string HarvesterUnitTestBucketName = "bloomharvest-unittests";
 		public const string HarvesterSandboxBucketName = "bloomharvest-sandbox";

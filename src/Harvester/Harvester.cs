@@ -26,13 +26,13 @@ namespace BloomHarvester
 		private const bool kEnableLoggingSkippedBooks = false;
 
 		protected IMonitorLogger _logger;
-		internal ParseClient _parseClient;
+		protected ParseClient _parseClient;
 		private EnvironmentSetting _parseDBEnvironment;
 		private BookTransfer _transfer;
-		internal string _downloadBucketName;
-		internal string _uploadBucketName;
-		internal HarvesterS3Client _bloomS3Client;
-		internal HarvesterS3Client _s3UploadClient;  // Note that we upload books to a different bucket than we download them from, so we have a separate client.
+		protected string _downloadBucketName;
+		protected string _uploadBucketName;
+		protected HarvesterS3Client _bloomS3Client;
+		protected HarvesterS3Client _s3UploadClient;  // Note that we upload books to a different bucket than we download them from, so we have a separate client.
 		protected HarvesterOptions _options;
 		private HashSet<string> _cumulativeFailedBookIdSet = new HashSet<string>();
 		private HashSet<string> _missingFonts = new HashSet<string>();

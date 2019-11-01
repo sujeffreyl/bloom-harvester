@@ -28,11 +28,14 @@ namespace BloomHarvester
 		private const bool kEnableLoggingSkippedBooks = false;
 
 		protected IMonitorLogger _logger;
-		private ParseClient _parseClient;
+		protected ParseClient _parseClient;
 		private EnvironmentSetting _parseDBEnvironment;
 		private BookTransfer _transfer;
-		private HarvesterS3Client _s3UploadClient;  // Note that we upload books to a different bucket than we download them from, so we have a separate client.
-		private HarvesterOptions _options;
+		protected string _downloadBucketName;
+		protected string _uploadBucketName;
+		protected HarvesterS3Client _bloomS3Client;
+		protected HarvesterS3Client _s3UploadClient;  // Note that we upload books to a different bucket than we download them from, so we have a separate client.
+		protected HarvesterOptions _options;
 		private HashSet<string> _cumulativeFailedBookIdSet = new HashSet<string>();
 		private HashSet<string> _missingFonts = new HashSet<string>();
 		internal Version Version;
@@ -71,31 +74,30 @@ namespace BloomHarvester
 			_parseClient = new ParseClient(_parseDBEnvironment);
 			_parseClient.Logger = _logger;
 
-			string downloadBucketName;
-			string uploadBucketName;
 			switch (_parseDBEnvironment)
 			{
 				case EnvironmentSetting.Prod:
-					downloadBucketName = BloomS3Client.ProductionBucketName;
-					uploadBucketName = HarvesterS3Client.HarvesterProductionBucketName;
+					_downloadBucketName = BloomS3Client.ProductionBucketName;
+					_uploadBucketName = HarvesterS3Client.HarvesterProductionBucketName;
 					break;
 				case EnvironmentSetting.Test:
-					downloadBucketName = BloomS3Client.UnitTestBucketName;
-					uploadBucketName = HarvesterS3Client.HarvesterUnitTestBucketName;
+					_downloadBucketName = BloomS3Client.UnitTestBucketName;
+					_uploadBucketName = HarvesterS3Client.HarvesterUnitTestBucketName;
 					break;
 				case EnvironmentSetting.Dev:
 				case EnvironmentSetting.Local:
 				default:
-					downloadBucketName = BloomS3Client.SandboxBucketName;
-					uploadBucketName = HarvesterS3Client.HarvesterSandboxBucketName;
+					_downloadBucketName = BloomS3Client.SandboxBucketName;
+					_uploadBucketName = HarvesterS3Client.HarvesterSandboxBucketName;
 					break;
 			}
+			_bloomS3Client = new HarvesterS3Client(_downloadBucketName, _parseDBEnvironment, true);
 			_transfer = new BookTransfer(_parseClient,
-				bloomS3Client: new HarvesterS3Client(downloadBucketName, _parseDBEnvironment, true),
+				bloomS3Client: _bloomS3Client,
 				htmlThumbnailer: null,
 				bookDownloadStartingEvent: new Bloom.BookDownloadStartingEvent());
 
-			_s3UploadClient = new HarvesterS3Client(uploadBucketName, _parseDBEnvironment, false);
+			_s3UploadClient = new HarvesterS3Client(_uploadBucketName, _parseDBEnvironment, false);
 
 			// Setup a handler that is called when the console is closed
 			consoleExitHandler = new ConsoleEventDelegate(ConsoleEventCallback);
@@ -501,6 +503,21 @@ namespace BloomHarvester
 		public static bool ShouldProcessBook(Book book, HarvestMode harvestMode, Version currentVersion, out string reason)
 		{
 			Debug.Assert(book != null, "ShouldProcessBook(): Book was null");
+
+			// Note: Beware, IsInCirculation can also be null, and we DO want to process books where it is true
+			if (book.IsInCirculation == false)
+			{
+				if (harvestMode == HarvestMode.ForceAll)
+				{
+					reason = "PROCESS: Mode = HarvestForceAll";
+					return true;
+				}
+				else
+				{
+					reason = "SKIP: Not in circulation";
+					return false;
+				}
+			}
 
 			if (!Enum.TryParse(book.HarvestState, out Parse.Model.HarvestState state))
 			{
@@ -1008,24 +1025,5 @@ namespace BloomHarvester
 			_s3UploadClient.UploadFile(epubPath, $"{s3FolderLocation}/epub");
 		}
 
-		/// <summary>
-		/// This function is here to allow setting the harvesterState to specific values to aid in setting up specific ad-hoc testing states.
-		/// In the Parse database, there are some rules that automatically set the harvestState to "Updated" when the book is republished.
-		/// Unfortunately, this rule also kicks in when a book is modified in the Parse dashboard or via the API Console (if no updateSource is set) :(
-		/// 
-		/// But executing this function allows you to set it to a value other than "Updated"
-		/// </summary>
-		internal static void UpdateHarvesterState(EnvironmentSetting parseDbEnvironment, string objectId, Parse.Model.HarvestState newState)
-		{
-			var updateOp = new BookUpdateOperation();
-			updateOp.UpdateFieldWithString(Book.kHarvestStateField, newState.ToString());
-
-			EnvironmentSetting environment = EnvironmentUtils.GetEnvOrFallback(parseDbEnvironment, EnvironmentSetting.Default);
-			var parseClient = new ParseClient(environment);
-			parseClient.UpdateObject(Book.GetStaticParseClassName(), objectId, updateOp.ToJson());
-			parseClient.FlushBatchableOperations();
-
-			Console.Out.WriteLine($"Evnironment={parseDbEnvironment}: Sent request to update object \"{objectId}\" with harvestState={newState}");
-		}
 	}
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -15,7 +15,7 @@ namespace BloomHarvester.Parse
 	// We could get the URLs and ApplicationID from the BlookDesktop base class. We would add our new Harvester-specific functions in our derived class.
 	//
 	// Right now, there's not enough common functionality to make it worthwhile. Maybe revisit this topic when the code becomes more stable.
-	internal class ParseClient : Bloom.WebLibraryIntegration.BloomParseClient
+	public class ParseClient : Bloom.WebLibraryIntegration.BloomParseClient
 	{
 		// Constructors
 		internal ParseClient(EnvironmentSetting environment)
@@ -343,15 +343,24 @@ namespace BloomHarvester.Parse
 		/// <summary>
 		/// Gets all rows from the Parse "books" class/table
 		/// </summary>
-		internal IEnumerable<Book> GetBooks(string whereCondition = "")
+		internal IEnumerable<Book> GetBooks(string whereCondition = "", IEnumerable<string> fieldsToDereference = null)
 		{
 			var request = new RestRequest("classes/books", Method.GET);
 			SetCommonHeaders(request);
-			request.AddParameter("keys", "object_id,baseUrl,harvestState,harvesterMajorVersion,harvesterMinorVersion,harvestLog,harvestStartedAt,show");
+			request.AddParameter("keys", "object_id,baseUrl,harvestState,harvesterMajorVersion,harvesterMinorVersion,harvestLog,harvestStartedAt,show,title,inCirculation,uploader,langPointers");
 			
 			if (!String.IsNullOrEmpty(whereCondition))
 			{
 				request.AddParameter("where", whereCondition);
+			}
+
+			// Instead of representing as object pointers (and requiring us to perform a 2nd query to get the object), Parse will dereference the pointer for us automatically
+			if (fieldsToDereference != null)
+			{
+				foreach (var field in fieldsToDereference)
+				{
+					request.AddParameter("include", field);
+				}
 			}
 
 			IEnumerable<Book> results = GetAllResults<Book>(request);
@@ -370,10 +379,12 @@ namespace BloomHarvester.Parse
 			int totalCount = 0;
 			do
 			{
-				request.AddParameter("count", "1");
-				request.AddParameter("limit", "1000");   // The limit should probably be on the higher side. The fewer DB calls, the better, probably.
-				request.AddParameter("skip", numProcessed.ToString());
-				request.AddParameter("order", "createdAt");
+				// Make sure you don't have duplicate instances of a lot of these parameters, especially limit and skip.
+				// Parse will not give you the results you want if you have them multiple times.
+				AddOrReplaceParameter(request, "count", "1");
+				AddOrReplaceParameter(request, "limit", "1000");   // The limit should probably be on the higher side. The fewer DB calls, the better, probably.
+				AddOrReplaceParameter(request, "order", "createdAt");
+				AddOrReplaceParameter(request, "skip", numProcessed.ToString());
 
 				Logger?.TrackEvent("ParseClient::GetAllResults Request Sent");
 				var restResponse = this.Client.Execute(request);
@@ -408,6 +419,30 @@ namespace BloomHarvester.Parse
 				}
 			}
 			while (numProcessed < totalCount);
+		}
+
+		/// <summary>
+		/// Adds the specified parameter with the specified value. If the parameter already exists, the existing value will be overwritten.
+		/// </summary>
+		/// <param name="request">The object whose Parameters field will be modified</param>
+		/// <param name="parameterName">The name of the parameter</param>
+		/// <param name="parameterValue">The new value of the parameter</param>
+		public void AddOrReplaceParameter(IRestRequest request, string parameterName, string parameterValue)
+		{
+			if (request.Parameters != null)
+			{
+				foreach (var param in request.Parameters)
+				{
+					if (param.Name == parameterName)
+					{
+						param.Value = parameterValue;
+						return;
+					}
+				}
+			}
+
+			// At this point, indicates that no replacements were made while iterating over the params. We'll have to add it in.
+			request.AddParameter(parameterName, parameterValue);
 		}
 	}
 }

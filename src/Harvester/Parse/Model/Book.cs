@@ -52,6 +52,18 @@ namespace BloomHarvester.Parse.Model
 		[JsonProperty("baseUrl")]
 		public string BaseUrl;
 
+		[JsonProperty("title")]
+		public string Title;
+
+		[JsonProperty("inCirculation")]
+		public bool? IsInCirculation;
+
+		[JsonProperty("langPointers")]
+		public Language[] Languages;
+
+		[JsonProperty("uploader")]
+		public User Uploader;
+
 		/// <summary>
 	    /// A json object used to limit what the Library shows the user for each book.
 	    /// For example:

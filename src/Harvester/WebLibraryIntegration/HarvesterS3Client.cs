@@ -9,10 +9,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using L10NSharp;
+using Amazon.S3.Model;
+using System.Web;
 
 namespace BloomHarvester.WebLibraryIntegration
 {
-	internal class HarvesterS3Client : BloomS3Client
+	public class HarvesterS3Client : BloomS3Client
 	{
 		public const string HarvesterUnitTestBucketName = "bloomharvest-unittests";
 		public const string HarvesterSandboxBucketName = "bloomharvest-sandbox";
@@ -40,6 +42,22 @@ namespace BloomHarvester.WebLibraryIntegration
 			yield return HarvesterProductionBucketName;
 			yield return HarvesterSandboxBucketName;
 			yield return HarvesterUnitTestBucketName;
+		}
+
+		internal static string GetBloomS3UrlPrefix()
+		{
+			return "https://s3.amazonaws.com/";
+		}
+
+		internal static string RemoveSiteAndBucketFromUrl(string url)
+		{
+			string decodedUrl = HttpUtility.UrlDecode(url);
+			string urlWithoutTitle = Harvester.RemoveBookTitleFromBaseUrl(decodedUrl);			
+			var bookOrder = urlWithoutTitle.Substring(GetBloomS3UrlPrefix().Length);
+			var index = bookOrder.IndexOf('/');
+			var folder = bookOrder.Substring(index + 1);
+
+			return folder;
 		}
 
 		protected override IAmazonS3 CreateAmazonS3Client(string bucketName, AmazonS3Config s3Config)
@@ -141,5 +159,32 @@ namespace BloomHarvester.WebLibraryIntegration
 		{
 			DeleteBookData(_bucketName, folderKey);
 		}
+
+		public string GetFileWithExtension(string bookFolder, string extension, string idealBaseName="")
+		{
+			var s3 = GetAmazonS3(_bucketName);
+			var request = new ListObjectsV2Request();
+			request.BucketName = _bucketName;
+			request.Prefix = bookFolder;
+
+			var response = s3.ListObjectsV2(request);
+
+			string idealFileName = $"{idealBaseName}.{extension}".ToLowerInvariant();
+			var idealTargets = response.S3Objects.Where(x => x.Key.ToLowerInvariant() == idealFileName);
+			if (idealTargets.Any())
+			{
+				return idealTargets.First().Key;
+			}
+
+			foreach (var item in response.S3Objects)
+			{
+				if (item.Key.ToLowerInvariant().EndsWith($".{extension}".ToLowerInvariant()))
+				{
+					return item.Key;
+				}
+			}
+
+			return null;
+  	}
 	}
 }

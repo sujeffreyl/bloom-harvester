@@ -30,6 +30,18 @@ namespace BloomHarvester
 				this.Branding = metaObj.brandingProjectName;
 			}
 
+			string pageNumberStyle = null;
+			if (metaObj.IsDefined("page-number-style"))
+			{
+				pageNumberStyle = metaObj["page-number-style"];
+			}
+
+			bool isRtl = false;
+			if (metaObj.IsDefined("isRtl"))
+			{
+				isRtl = metaObj["isRtl"];
+			}
+
 			var bloomCollectionElement =
 				new XElement("Collection",
 					new XElement("Language1Iso639Code", new XText(Language1Code)),
@@ -38,7 +50,10 @@ namespace BloomHarvester
 					new XElement("Language1Name", new XText(GetLanguageDisplayNameOrEmpty(metaObj, Language1Code))),
 					new XElement("Language2Name", new XText(GetLanguageDisplayNameOrEmpty(metaObj, Language2Code))),
 					new XElement("Language3Name", new XText(GetLanguageDisplayNameOrEmpty(metaObj, Language3Code))),
-					new XElement("BrandingProjectName", new XText(Branding ?? "")));
+					new XElement("BrandingProjectName", new XText(Branding ?? "")),
+					new XElement("PageNumberStyle", new XText(pageNumberStyle ?? "")),
+					new XElement("IsLanguage1Rtl"), new XText(isRtl.ToString().ToLowerInvariant())
+					);
 			var sb = new StringBuilder();
 			using (var writer = XmlWriter.Create(sb))
 				bloomCollectionElement.WriteTo(writer);

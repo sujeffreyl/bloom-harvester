@@ -968,6 +968,9 @@ namespace BloomHarvester
 				}
 			};
 
+			StringBuilder processOutputBuffer = new StringBuilder();
+			process.OutputDataReceived += new DataReceivedEventHandler((sender, e) => { processOutputBuffer.Append(e.Data); });
+
 			StringBuilder processErrorBuffer = new StringBuilder();
 			process.ErrorDataReceived += new DataReceivedEventHandler((sender, e) => { processErrorBuffer.Append(e.Data); });
 
@@ -979,11 +982,13 @@ namespace BloomHarvester
 			//
 			// Highlights: You shouldn't have WaitForExit() followed by ReadToEnd(). It will deadlock if the new process writes enough to fill the buffer.
 			//             You shouldn't have ReadToEnd() of both stdout and stderr. It will deadlock if the new process writes enough to fill the buffer.
-			standardOutput = process.StandardOutput.ReadToEnd();
+			//             Calling ReadToEnd() will deadlock if the new process crashes.
+			process.BeginOutputReadLine();
 			process.BeginErrorReadLine();
 
 			// Block and wait for it to finish
 			bool hasExited = process.WaitForExit(timeoutMilliseconds);
+			standardOutput = processOutputBuffer.ToString();
 			standardError = processErrorBuffer.ToString();
 
 			bool isExitedNormally = true;

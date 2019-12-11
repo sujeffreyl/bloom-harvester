@@ -394,8 +394,17 @@ namespace BloomHarvester
 				string urlWithoutTitle = RemoveBookTitleFromBaseUrl(decodedUrl);
 				string downloadRootDir = Path.Combine(Path.GetTempPath(), Path.Combine("BloomHarvester", this.Identifier));
 				_logger.LogVerbose("Download Dir: {0}", downloadRootDir);
-				Bloom.Program.RunningHarvesterMode = true;	// HandleDownloadWithoutProgress has a nested subcall to BloomS3Client.cs::AvoidThisFile() which looks at HarvesterMode
-				string downloadBookDir = _transfer.HandleDownloadWithoutProgress(urlWithoutTitle, downloadRootDir);
+				Bloom.Program.RunningHarvesterMode = true;  // HandleDownloadWithoutProgress has a nested subcall to BloomS3Client.cs::AvoidThisFile() which looks at HarvesterMode
+
+				string downloadBookDir;
+				if (_options.SkipDownload && Directory.Exists(Path.Combine(downloadRootDir, book.Title)))
+				{
+					downloadBookDir = Path.Combine(downloadRootDir, book.Title);
+				}
+				else
+				{
+					downloadBookDir = _transfer.HandleDownloadWithoutProgress(urlWithoutTitle, downloadRootDir);
+				}
 
 				// Process the book
 				var finalUpdates = new BookUpdateOperation();
@@ -439,9 +448,13 @@ namespace BloomHarvester
 					_parseClient.UpdateObject(book.GetParseClassName(), book.ObjectId, finalUpdates.ToJson());
 				}
 
-				// Cleanup the download directory if everything was successful.
-				// (If it failed, I guess it's fine to skip deleting it because having the download around makes debugging easier)
-				SIL.IO.RobustIO.DeleteDirectoryAndContents(downloadBookDir);
+				if (!_options.SkipDownload)
+				{
+					// Cleanup the download directory if everything was successful.
+					// (If it failed, I guess it's fine to skip deleting it because having the download around makes debugging easier)
+					// (If SkipDownload is true, we skip deleting this so that the next time we run it, it can reuse the download directory.
+					SIL.IO.RobustIO.DeleteDirectoryAndContents(downloadBookDir);
+				}
 
 				_logger.TrackEvent("ProcessOneBook End - " + (isSuccessful ? "Success" : "Error"));
 			}

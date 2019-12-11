@@ -107,6 +107,9 @@ namespace BloomHarvester
 		[Option("loop", Required = false, Default = false, HelpText = "If true, will keep re-running Harvester after it finishes.")]
 		public bool Loop { get; set; }
 
+		[Option("skipDownload", Required = false, Default = false, HelpText = "If true, will skip downloading the book if it already exists.")]
+		public bool SkipDownload { get; set; }
+
 		[Option("skipUploadBloomDigitalArtifacts", Required = false, Default = false, HelpText = "If true, will prevent the .bloomd and Bloom Digital (Read on Bloom Library) artifacts from being uploaded.")]
 		public bool SkipUploadBloomDigitalArtifacts { get; set; }
 

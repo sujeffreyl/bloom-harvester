@@ -30,6 +30,9 @@ We haven't yet fully automated getting all dependencies. Currently, the best app
 
 Until we get an issue with localization files getting copied to the temp directory figured out, there is a workaround you have to use to run locally.
 Use the version of Bloom.exe you have built locally instead of the one from TeamCity. See commented lines in BloomHarvester.csproj and use those instead of the other reference for Bloom.
+
+## Cleaning the build
+If you want to make sure your build is really clean, running Clean Build doesn't suffice. you need to go into the directory it builds into and deleted any or all unwanted files/subdirectories out of there.
 ## Azure
 ### Searching for specific log text
 1. portal.azure.com

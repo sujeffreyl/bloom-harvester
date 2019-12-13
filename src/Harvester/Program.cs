@@ -17,17 +17,21 @@ namespace BloomHarvester
 		// Command line arguments sample: "harvestAll --environment=dev --parseDBEnvironment=prod"
 		//
 		// Some presets that you might copy and paste in:
-		// harvest --mode=all --environment=dev --parseDBEnvironment=local --suppressLogs --count=2
-		// harvest --mode=warnings --environment=dev --parseDBEnvironment=local --suppressLogs
-		// harvest --mode=all --environment=dev --parseDBEnvironment=local --suppressLogs "--queryWhere={ \"objectId\":\"38WdeYJ0yF\"}"
-		// harvest --mode=all --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"objectId\":\"JUCL9OMOza\"}"
-		// harvest --mode=all --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"title\":{\"$in\":[\"Vaccinations\",\"Fox and Frog\",\"The Moon and the Cap\"]}}"
-		// harvest --mode=all --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"title\":{\"$regex\":\"^^A\"}}"	// Note that the "^" in the regex apparently needed to be escaped with another "^" before it. Not sure why...
-		// harvest --mode=all --environment=dev --parseDBEnvironment=prod --suppressLogs "--queryWhere={ \"title\":{\"$regex\":\"^^A\"},\"tags\":\"bookshelf:Ministerio de Educación de Guatemala\"}"	// Note that the "^" in the regex apparently needed to be escaped with another "^" before it. Not sure why...
-		// harvest --mode=all --environment=prod --parseDBEnvironment=prod "--queryWhere={ \"tags\":\"bookshelf:Resources for the Blind, Inc. (Philippines)\"}"
-		// harvest --mode=default --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"objectId\":{\"$in\":[\"ze17yO6jIm\",\"v4YABQJLB2\"]}}"
-		// harvest --mode=default --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"uploader\":{\"$in\":[\"SXsqpDHGKk\"]}}"
-		// harvest --mode=all --environment=dev --parseDBEnvironment=dev  --suppressLogs "--queryWhere={ \"objectId\":\"zBsLInOzWG\"}" --skipUploadBloomDigitalArtifacts
+		// mode examples
+		//     harvest --mode=all --environment=dev --parseDBEnvironment=local --suppressLogs --count=2
+		//     harvest --mode=warnings --environment=dev --parseDBEnvironment=local --suppressLogs
+		// queryWhere examples
+		//     harvest --mode=all --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"objectId\":\"JUCL9OMOza\"}"
+		//     harvest --mode=default --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"objectId\":{\"$in\":[\"ze17yO6jIm\",\"v4YABQJLB2\"]}}"
+		//     harvest --mode=all --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"title\":{\"$in\":[\"Vaccinations\",\"Fox and Frog\",\"The Moon and the Cap\"]}}"
+		//     harvest --mode=all --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"title\":{\"$regex\":\"^^A\"}}"	// Note that the "^" in the regex apparently needed to be escaped with another "^" before it. Not sure why...
+		//     harvest --mode=all --environment=dev --parseDBEnvironment=prod --suppressLogs "--queryWhere={ \"title\":{\"$regex\":\"^^A\"},\"tags\":\"bookshelf:Ministerio de Educación de Guatemala\"}"	// Note that the "^" in the regex apparently needed to be escaped with another "^" before it. Not sure why...
+		//     harvest --mode=all --environment=prod --parseDBEnvironment=prod "--queryWhere={ \"tags\":\"bookshelf:Resources for the Blind, Inc. (Philippines)\"}"
+		//     harvest --mode=default --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"uploader\":{\"$in\":[\"SXsqpDHGKk\"]}}"
+		// skipUpload examples
+		//     harvest --mode=all --environment=dev --parseDBEnvironment=dev  --suppressLogs "--queryWhere={ \"objectId\":\"zBsLInOzWG\"}" --skipUploadBloomDigitalArtifacts
+		// minStartTime examples
+		//	   harvest --mode=default --environment=prod --parseDBEnvironment=prod --readonly --suppresslogs "--minStartTime=2019-12-13"
 		//
 		// updateState --parseDBEnvironment=dev --id="ze17yO6jIm" --newState="InProgress"
 		// Alternatively, you can use Parse API Console.
@@ -115,6 +119,9 @@ namespace BloomHarvester
 
 		[Option("skipUploadEPub", Required = false, Default = false, HelpText = "If true, will prevent the .epub artifact from being uploaded.")]
 		public bool SkipUploadEPub { get; set; }
+
+		[Option("minStartTime", Required = false, Default = "", HelpText = "If specified, this is a datetime string that represents the minimum upload time.  A book will only be processed if it was uploaded after this time.")]
+		public string MinStartTime { get; set; }
 
 		public virtual string GetPrettyPrint()
 		{

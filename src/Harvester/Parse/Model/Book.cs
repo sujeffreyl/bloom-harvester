@@ -64,6 +64,9 @@ namespace BloomHarvester.Parse.Model
 		[JsonProperty("uploader")]
 		public User Uploader;
 
+		[JsonProperty("updatedAt")]
+		public DateTime UpdatedAt;
+
 		/// <summary>
 	    /// A json object used to limit what the Library shows the user for each book.
 	    /// For example:

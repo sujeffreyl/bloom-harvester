@@ -19,7 +19,12 @@ namespace BloomHarvesterTests
 		// Helper methods
 		private static bool RunShouldProcessBook(Book book, string currentVersionStr, HarvestMode mode = HarvestMode.Default)
 		{
-			return Harvester.ShouldProcessBook(book, mode, new Version(currentVersionStr), out _);
+			return Harvester.ShouldProcessBook(book, mode, new Version(currentVersionStr), DateTime.MinValue, out _);
+		}
+
+		private static bool RunShouldProcessBook(Book book, string currentVersionStr, DateTime startTime, HarvestMode mode = HarvestMode.Default)
+		{
+			return Harvester.ShouldProcessBook(book, mode, new Version(currentVersionStr), startTime, out _);
 		}
 
 		private Book SetupDefaultBook(HarvestState bookState, string previousVersionStr)
@@ -170,7 +175,7 @@ namespace BloomHarvesterTests
 			{
 				var currentVersion = new Version(majorVersion, 0);
 
-				bool result = Harvester.ShouldProcessBook(book, HarvestMode.Default, currentVersion, out _);
+				bool result = Harvester.ShouldProcessBook(book, HarvestMode.Default, currentVersion, DateTime.MinValue, out _);
 
 				Assert.AreEqual(PROCESS, result, $"Failed for currentVersion={currentVersion}, previousVersion={book.HarvesterMajorVersion}.{book.HarvesterMinorVersion}");
 			}
@@ -233,6 +238,49 @@ namespace BloomHarvesterTests
 			bool result = RunShouldProcessBook(book, "1.1");
 
 			Assert.AreEqual(SKIP, result);
+		}
+
+		[Test]
+		public void ShouldProcessBook_OlderThanMinDate_Skipped()
+		{
+			Book book = new Book()
+			{
+				HarvestState = "New",
+				UpdatedAt = new DateTime(2019, 12, 31)
+			};
+
+			bool result = RunShouldProcessBook(book, "1.1", new DateTime(2020, 1, 1));
+
+			Assert.AreEqual(SKIP, result);
+		}
+
+		[Test]
+		public void ShouldProcessBook_NewerThanMinDate_Processed()
+		{
+			Book book = new Book()
+			{
+				HarvestState = "New",
+				UpdatedAt = new DateTime(2020, 2, 2)
+			};
+
+			bool result = RunShouldProcessBook(book, "1.1", new DateTime(2020, 1, 1));
+
+			Assert.AreEqual(PROCESS, result);
+		}
+
+
+		[Test]
+		public void ShouldProcessBook_NoMinDate_Processed()
+		{
+			Book book = new Book()
+			{
+				HarvestState = "New",
+				UpdatedAt = new DateTime(2020, 2, 2)
+			};
+
+			bool result = RunShouldProcessBook(book, "1.1");
+
+			Assert.AreEqual(PROCESS, result);
 		}
 
 		[Test]

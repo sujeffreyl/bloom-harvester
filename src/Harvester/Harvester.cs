@@ -40,6 +40,7 @@ namespace BloomHarvester
 		private HashSet<string> _missingFonts = new HashSet<string>();
 		internal Version Version;
 		private Random _rng = new Random();
+		private DateTime _minDateTime;
 
 		// These vars handle the application being exited while a book is still InProgress
 		private string _currentBookId = null;   // The ID of the current book for as long as that book has the "InProgress" state set on it. Should be set back to null/empty when the state is no longer "InProgress"
@@ -67,6 +68,19 @@ namespace BloomHarvester
 			{
 				EnvironmentSetting azureMonitorEnvironment = EnvironmentUtils.GetEnvOrFallback(options.LogEnvironment, options.Environment);
 				_logger = new AzureMonitorLogger(azureMonitorEnvironment, this.Identifier);
+			}
+
+			if (!String.IsNullOrWhiteSpace(options.MinStartTime))
+			{
+				// We won't require the option to be set (If it's not set, we'll just say it's the minimum),
+				// but if the option string is set, we're going to require it to parse to something valid.
+				// We'll throw an exception if it's not valid... I think the user should know rather than having it silently set to a default value that may not be intended.
+				_minDateTime = DateTime.Parse(options.MinStartTime);
+				_logger.LogInfo("MinStartTime parsed as: " + _minDateTime.ToString());
+			}
+			else
+			{
+				_minDateTime = DateTime.MinValue;
 			}
 
 			// Setup Parse Client and S3 Clients
@@ -504,7 +518,7 @@ namespace BloomHarvester
 
 		private bool ShouldProcessBook(Book book, out string reason)
 		{
-			return ShouldProcessBook(book, _options.Mode, this.Version, out reason);
+			return ShouldProcessBook(book, _options.Mode, this.Version, this._minDateTime, out reason);
 		}
 
 		/// <summary>
@@ -513,7 +527,7 @@ namespace BloomHarvester
 		/// <param name="book"></param>
 		/// <param name="reason">If the method returns true, then reason must be assigned with an explanation of why the book was selected for processing</param>
 		/// <returns>Returns true if the book should be processed</returns>
-		public static bool ShouldProcessBook(Book book, HarvestMode harvestMode, Version currentVersion, out string reason)
+		public static bool ShouldProcessBook(Book book, HarvestMode harvestMode, Version currentVersion, DateTime minDateTime, out string reason)
 		{
 			Debug.Assert(book != null, "ShouldProcessBook(): Book was null");
 
@@ -561,6 +575,12 @@ namespace BloomHarvester
 				{
 					isStaleState = true;
 				}
+			}
+
+			if (minDateTime != null && book.UpdatedAt < minDateTime)
+			{
+				reason = "SKIP: Book was not updated after the specified minimum starting time.";
+				return false;
 			}
 
 

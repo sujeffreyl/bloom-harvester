@@ -31,7 +31,7 @@ namespace BloomHarvesterTests.Parse.Model
 
 			//Verify
 			string bookJson = JsonConvert.SerializeObject(book);
-			string expectedJson = "{\"harvestState\":\"Done\",\"harvesterMajorVersion\":1,\"harvesterMinorVersion\":0,\"harvestStartedAt\":{\"__type\":\"Date\",\"iso\":\"2019-09-11T00:00:00.000Z\"},\"harvestLog\":[],\"baseUrl\":\"www.amazon.com\",\"show\":{\"epub\":{\"harvester\":false},\"pdf\":{\"harvester\":true},\"bloomReader\":{\"harvester\":true},\"readOnline\":{\"harvester\":true}},\"objectId\":null}";
+			string expectedJson = "{\"harvestState\":\"Done\",\"harvesterMajorVersion\":1,\"harvesterMinorVersion\":0,\"harvestStartedAt\":{\"__type\":\"Date\",\"iso\":\"2019-09-11T00:00:00.000Z\"},\"harvestLog\":[],\"baseUrl\":\"www.amazon.com\",\"title\":null,\"inCirculation\":null,\"langPointers\":null,\"uploader\":null,\"show\":{\"epub\":{\"harvester\":false},\"pdf\":{\"harvester\":true},\"bloomReader\":{\"harvester\":true},\"readOnline\":{\"harvester\":true}},\"objectId\":null}";
 			Assert.AreEqual(expectedJson, bookJson);
 		}
 
@@ -58,7 +58,7 @@ namespace BloomHarvesterTests.Parse.Model
 
 			//Verify
 			string bookJson = JsonConvert.SerializeObject(book);
-			string expectedJson = "{\"harvestState\":\"Done\",\"harvesterMajorVersion\":1,\"harvesterMinorVersion\":0,\"harvestStartedAt\":{\"__type\":\"Date\",\"iso\":\"2019-09-11T00:00:00.000Z\"},\"harvestLog\":[],\"baseUrl\":\"www.amazon.com\",\"show\":{\"epub\":{\"harvester\":true,\"librarian\":true,\"user\":true},\"pdf\":{\"harvester\":true,\"librarian\":false,\"user\":false},\"bloomReader\":{\"harvester\":true,\"librarian\":false},\"readOnline\":{\"harvester\":true,\"user\":true}},\"objectId\":null}";
+			string expectedJson = "{\"harvestState\":\"Done\",\"harvesterMajorVersion\":1,\"harvesterMinorVersion\":0,\"harvestStartedAt\":{\"__type\":\"Date\",\"iso\":\"2019-09-11T00:00:00.000Z\"},\"harvestLog\":[],\"baseUrl\":\"www.amazon.com\",\"title\":null,\"inCirculation\":null,\"langPointers\":null,\"uploader\":null,\"show\":{\"epub\":{\"harvester\":true,\"librarian\":true,\"user\":true},\"pdf\":{\"harvester\":true,\"librarian\":false,\"user\":false},\"bloomReader\":{\"harvester\":true,\"librarian\":false},\"readOnline\":{\"harvester\":true,\"user\":true}},\"objectId\":null}";
 			Assert.AreEqual(expectedJson, bookJson);
 		}
 	}

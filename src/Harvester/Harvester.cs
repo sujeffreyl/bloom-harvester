@@ -24,9 +24,9 @@ namespace BloomHarvester
 	{
 		private const int kCreateArtifactsTimeoutSecs = 300;
 		private const int kGetFontsTimeoutSecs = 20;
-		private const int kDelayAfterEmptyRunSecs = 300;
 		private const bool kEnableLoggingSkippedBooks = false;
 
+		private int _delayAfterEmptyRunSecs = 300;
 		protected IMonitorLogger _logger;
 		protected ParseClient _parseClient;
 		private EnvironmentSetting _parseDBEnvironment;
@@ -67,6 +67,11 @@ namespace BloomHarvester
 			{
 				EnvironmentSetting azureMonitorEnvironment = EnvironmentUtils.GetEnvOrFallback(options.LogEnvironment, options.Environment);
 				_logger = new AzureMonitorLogger(azureMonitorEnvironment, this.Identifier);
+			}
+
+			if (options.LoopWaitSeconds >= 0)
+			{
+				_delayAfterEmptyRunSecs = options.LoopWaitSeconds;
 			}
 
 			// Setup Parse Client and S3 Clients
@@ -281,9 +286,9 @@ namespace BloomHarvester
 
 						if (numBooksProcessed == 0)
 						{
-							var estimatedResumeTime = DateTime.Now.AddSeconds(kDelayAfterEmptyRunSecs);
+							var estimatedResumeTime = DateTime.Now.AddSeconds(_delayAfterEmptyRunSecs);
 							Console.Out.WriteLine($"Waiting till: {estimatedResumeTime.ToString("h:mm:ss tt")}...");
-							Thread.Sleep(kDelayAfterEmptyRunSecs * 1000);
+							Thread.Sleep(_delayAfterEmptyRunSecs * 1000);
 						}
 						else
 						{

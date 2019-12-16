@@ -58,6 +58,7 @@ namespace BloomHarvester
 				}
 			}
 
+			_logger.LogInfo($"{bookList.Count()} objects processed.");
 			if (!IsDryRun)
 			{
 				_parseClient.FlushBatchableOperations();

@@ -113,6 +113,9 @@ namespace BloomHarvester
 		[Option("loop", Required = false, Default = false, HelpText = "If true, will keep re-running Harvester after it finishes.")]
 		public bool Loop { get; set; }
 
+		[Option("loopWaitSeconds", Required = false, Default = 300, HelpText = "If specified, and loop mode is on, then specifies the number of seconds to wait between loop iterations if nothing was previously processed")]
+		public int LoopWaitSeconds { get; set; }
+
 		[Option("skipDownload", Required = false, Default = false, HelpText = "If true, will skip downloading the book if it already exists.")]
 		public bool SkipDownload { get; set; }
 

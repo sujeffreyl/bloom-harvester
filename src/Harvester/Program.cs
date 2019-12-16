@@ -160,6 +160,9 @@ namespace BloomHarvester
 
 		[Option("newState", Required = true, HelpText = "The new state to set it to")]
 		public Parse.Model.HarvestState NewState { get; set; }
+
+		[Option("dryRun", Required = false, Default = false, HelpText = "If specified, will print out what it will try to do, but will not actually execute the commands.")]
+		public bool DryRun { get; set; }
 	}
 
 	[Verb("generateProcessedFilesTSV", HelpText = "Generates a TSV file containing the processed files")]

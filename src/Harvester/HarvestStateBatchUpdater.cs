@@ -10,6 +10,7 @@ namespace BloomHarvester
 	internal class HarvestStateBatchUpdater : Harvester
 	{
 		private HarvestState NewState { get; set; }
+		private bool IsDryRun { get; set; }
 
 		private HarvestStateBatchUpdater(BatchUpdateStateInParseOptions options)
 			: base(new HarvesterOptions()
@@ -21,6 +22,7 @@ namespace BloomHarvester
 			})
 		{
 			NewState = options.NewState;
+			IsDryRun = options.DryRun;
 		}
 
 		internal static void RunBatchUpdateStates(BatchUpdateStateInParseOptions options)
@@ -48,11 +50,22 @@ namespace BloomHarvester
 					newStateStr = NewState.ToString();
 				}
 
-				var updateOp = new BookUpdateOperation();
-				updateOp.UpdateFieldWithString(Book.kHarvestStateField, newStateStr);
-				_parseClient.UpdateObject(book.GetParseClassName(), book.ObjectId, updateOp.ToJson());
+				if (!IsDryRun)
+				{
+					var updateOp = new BookUpdateOperation();
+					updateOp.UpdateFieldWithString(Book.kHarvestStateField, newStateStr);
+					_parseClient.UpdateObject(book.GetParseClassName(), book.ObjectId, updateOp.ToJson());
+				}
 			}
-			_parseClient.FlushBatchableOperations();
+
+			if (!IsDryRun)
+			{
+				_parseClient.FlushBatchableOperations();
+			}
+			else
+			{
+				_logger.LogInfo("Dry run done. (No updates were actually made)");
+			}
 		}
 	}
 }

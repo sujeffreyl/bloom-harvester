@@ -28,6 +28,7 @@ namespace BloomHarvester
 		// harvest --mode=default --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"objectId\":{\"$in\":[\"ze17yO6jIm\",\"v4YABQJLB2\"]}}"
 		// harvest --mode=default --environment=dev --parseDBEnvironment=dev --suppressLogs "--queryWhere={ \"uploader\":{\"$in\":[\"SXsqpDHGKk\"]}}"
 		// harvest --mode=all --environment=dev --parseDBEnvironment=dev  --suppressLogs "--queryWhere={ \"objectId\":\"zBsLInOzWG\"}" --skipUploadBloomDigitalArtifacts
+		// Note that --mode=forceAll allows harvester to run again regardless of the book's current state.
 		//
 		// updateState --parseDBEnvironment=dev --id="ze17yO6jIm" --newState="InProgress"
 		// Alternatively, you can use Parse API Console.
@@ -35,7 +36,8 @@ namespace BloomHarvester
 		//   * Endpoint: classes/books/{OBJECTID}
 		//   * Query Parameters: {"updateSource":"bloomHarvester","harvestState":"{NEWSTATE}"}
 		//
-		// Note that --mode=forceAll allows harvester to run again regardless of the book's current state.
+		// batchUpdateState --parseDBEnvironment=dev "--queryWhere={ \"harvestState\":\"Failed\"}" --newState="Unknown"
+		//
 		[STAThread]
 		public static void Main(string[] args)
 		{
@@ -49,7 +51,7 @@ namespace BloomHarvester
 
 			try
 			{
-				parser.ParseArguments<HarvesterOptions, UpdateStateInParseOptions, GenerateProcessedFilesTSVOptions>(args)
+				parser.ParseArguments<HarvesterOptions, UpdateStateInParseOptions, BatchUpdateStateInParseOptions, GenerateProcessedFilesTSVOptions>(args)
 					.WithParsed<HarvesterOptions>(options =>
 					{
 						Harvester.RunHarvest(options);
@@ -57,6 +59,10 @@ namespace BloomHarvester
 					.WithParsed<UpdateStateInParseOptions>(options =>
 					{
 						HarvestStateUpdater.UpdateState(options.ParseDBEnvironment, options.ObjectId, options.NewState);
+					})
+					.WithParsed<BatchUpdateStateInParseOptions>(options =>
+					{
+						HarvestStateBatchUpdater.RunBatchUpdateStates(options);
 					})
 					.WithParsed<GenerateProcessedFilesTSVOptions>(options =>
 					{
@@ -138,6 +144,19 @@ namespace BloomHarvester
 
 		[Option("id", Required = true, HelpText = "The objectId of the item to update.")]
 		public string ObjectId { get; set; }
+
+		[Option("newState", Required = true, HelpText = "The new state to set it to")]
+		public Parse.Model.HarvestState NewState { get; set; }
+	}
+
+	[Verb("batchUpdateState", HelpText = "Batch updates the harvestState field in Parse")]
+	public class BatchUpdateStateInParseOptions
+	{
+		[Option("parseDBEnvironment", Required = false, Default = EnvironmentSetting.Default, HelpText = "Sets the environment to read/write from Parse DB. Valid values are Default, Dev, Test, or Prod. If specified (to non-Default), takes precedence over the general 'environment' option.")]
+		public EnvironmentSetting ParseDBEnvironment { get; set; }
+
+		[Option("queryWhere", Required = true, Default = "", HelpText = "If specified, adds a WHERE clause to the request query when retrieving the list of books to process. This should be in the JSON format used by Parse REST API to pass WHERE clauses. See https://docs.parseplatform.org/rest/guide/#query-constraints")]
+		public string QueryWhere { get; set; }
 
 		[Option("newState", Required = true, HelpText = "The new state to set it to")]
 		public Parse.Model.HarvestState NewState { get; set; }

@@ -26,7 +26,7 @@ namespace BloomHarvester
 			parseClient.UpdateObject(Book.GetStaticParseClassName(), objectId, updateOp.ToJson());
 			parseClient.FlushBatchableOperations();
 
-			Console.Out.WriteLine($"Evnironment={parseDbEnvironment}: Sent request to update object \"{objectId}\" with harvestState={newState}");
+			Console.Out.WriteLine($"Environment={parseDbEnvironment}: Sent request to update object \"{objectId}\" with harvestState={newState}");
 		}
 	}
 }

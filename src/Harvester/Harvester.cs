@@ -178,7 +178,18 @@ namespace BloomHarvester
 					var methodStopwatch = new Stopwatch();
 					methodStopwatch.Start();
 
-					IEnumerable<Book> bookList = _parseClient.GetBooks(combinedWhereJson);
+					IEnumerable<Book> bookList = _parseClient.GetBooks(out bool didExitPrematurely, combinedWhereJson);
+
+					if (didExitPrematurely && !_options.Loop)
+					{
+						// If GetBooks exited prematurely (i.e., partial results), AND LOOP IS NOT SET,
+						// then we don't want to risk the user getting confused with only some of the intended books getting processed.
+						// So we just abort it. All or nothing.
+						//
+						// On the other hand, if LOOP was set, we'll just do a best-effort on this iteration, and eventually on some future iteration hopefully it should work.
+						_logger.LogError("GetBooks() encountered an error and did not return all results. Aborting.");
+						break;
+					}
 
 					if (bookList == null)
 					{

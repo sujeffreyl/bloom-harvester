@@ -38,7 +38,13 @@ namespace BloomHarvester
 		/// </summary>
 		private void BatchUpdateStates()
 		{
-			IEnumerable<Book> bookList = _parseClient.GetBooks(_options.QueryWhere);
+			IEnumerable<Book> bookList = _parseClient.GetBooks(out bool didExitPrematurely, _options.QueryWhere);
+
+			if (didExitPrematurely)
+			{
+				_logger.LogError("GetBooks() encountered an error and did not return all results. Aborting.");
+				return;
+			}
 
 			foreach (var book in bookList)
 			{

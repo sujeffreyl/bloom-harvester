@@ -343,7 +343,7 @@ namespace BloomHarvester.Parse
 		/// <summary>
 		/// Gets all rows from the Parse "books" class/table
 		/// </summary>
-		internal IEnumerable<Book> GetBooks(string whereCondition = "", IEnumerable<string> fieldsToDereference = null)
+		internal IEnumerable<Book> GetBooks(out bool didExitPrematurely, string whereCondition = "", IEnumerable<string> fieldsToDereference = null)
 		{
 			var request = new RestRequest("classes/books", Method.GET);
 			SetCommonHeaders(request);
@@ -363,7 +363,7 @@ namespace BloomHarvester.Parse
 				}
 			}
 
-			IEnumerable<Book> results = GetAllResults<Book>(request);
+			IEnumerable<Book> results = GetAllResults<Book>(request, out didExitPrematurely);
 			return results;
 		}
 				
@@ -373,8 +373,10 @@ namespace BloomHarvester.Parse
 		/// <typeparam name="T"></typeparam>
 		/// <param name="request">The request should not include count, limit, skip, or order fields. This method will populate those in order to provide the functionality</param>
 		/// <returns>Yields the results through an IEnumerable as needed</returns>
-		private IEnumerable<T> GetAllResults<T>(IRestRequest request)
+		private List<T> GetAllResults<T>(IRestRequest request, out bool didExitPrematurely)
 		{
+			var results = new List<T>();
+
 			int numProcessed = 0;
 			int totalCount = 0;
 			do
@@ -392,11 +394,27 @@ namespace BloomHarvester.Parse
 
 				var response = JsonConvert.DeserializeObject<Parse.ParseResponse<T>>(responseJson);
 
+				if (response == null)
+				{
+					// If the Parse Server is down or restarting, the response might time out after a minute or so
+					// and we'll reach this condition.
+					Logger.LogWarn("ParseClient::GetAllResults() - response was null.");
+					didExitPrematurely = true;
+					return results;
+				}
+
 				totalCount = response.Count;
 				if (totalCount == 0)
 				{
 					Console.Out.WriteLine("Query returned no results.");
 					break;
+				}
+
+				if (response.Results == null)
+				{
+					Logger.LogWarn("ParseClient::GetAllResults() - response.Results was null.");
+					didExitPrematurely = true;
+					return results;
 				}
 
 				var currentResultCount = response.Results.Length;				
@@ -405,10 +423,7 @@ namespace BloomHarvester.Parse
 					break;
 				}
 
-				for (int i = 0; i < currentResultCount; ++i)
-				{
-					yield return response.Results[i];
-				}
+				results.AddRange(response.Results);				
 
 				numProcessed += currentResultCount;
 
@@ -419,6 +434,9 @@ namespace BloomHarvester.Parse
 				}
 			}
 			while (numProcessed < totalCount);
+
+			didExitPrematurely = false;
+			return results;
 		}
 
 		/// <summary>

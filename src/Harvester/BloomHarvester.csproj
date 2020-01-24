@@ -1,9 +1,9 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
 		<TargetFramework>net461</TargetFramework>
-		<AssemblyVersion>2.0.0.0</AssemblyVersion>
-		<AssemblyFileVersion>2.0.0.0</AssemblyFileVersion>
+		<AssemblyVersion>2.1.0.0</AssemblyVersion>
+		<AssemblyFileVersion>2.1.0.0</AssemblyFileVersion>
 		<AssemblyInformationalVersion>2.0.0.0</AssemblyInformationalVersion>
 	</PropertyGroup>
 

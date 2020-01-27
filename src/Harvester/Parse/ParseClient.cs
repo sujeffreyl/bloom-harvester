@@ -392,7 +392,18 @@ namespace BloomHarvester.Parse
 				var restResponse = this.Client.Execute(request);
 				string responseJson = restResponse.Content;
 
-				var response = JsonConvert.DeserializeObject<Parse.ParseResponse<T>>(responseJson);
+				ParseResponse<T> response;
+				try
+				{
+					response = JsonConvert.DeserializeObject<Parse.ParseResponse<T>>(responseJson);
+				}
+				catch (Newtonsoft.Json.JsonReaderException e)
+				{
+					Logger.LogWarn("ParseClient::GetAllResults() - JsonReaderException.");
+					Logger.LogVerbose("JsonReaderException: " + e.ToString());
+					didExitPrematurely = true;
+					return results;
+				}
 
 				if (response == null)
 				{

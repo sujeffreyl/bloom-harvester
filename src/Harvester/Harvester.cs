@@ -785,8 +785,18 @@ namespace BloomHarvester
 		{
 			var harvestLogEntries = new List<BaseLogEntry>();
 
-			var missingFontsForCurrBook = GetMissingFonts(bookPath);
-			bool areAnyFontsMissing = missingFontsForCurrBook != null && missingFontsForCurrBook.Any();
+			var missingFontsForCurrBook = GetMissingFonts(bookPath, out bool success);
+
+			if (!success)
+			{
+				// We now require successful determination of which fonts are missing.
+				// Since we abort processing a book if any fonts are missing,
+				// we don't want to proceed blindly if we're not sure if the book is missing any fonts.
+				harvestLogEntries.Add(new LogEntries.GetFontsError());
+				return harvestLogEntries;
+			}
+
+			bool areAnyFontsMissing = missingFontsForCurrBook.Any();
 			if (areAnyFontsMissing)
 			{
 				_logger.LogWarn("Missing fonts: " + String.Join(",", missingFontsForCurrBook));
@@ -816,18 +826,20 @@ namespace BloomHarvester
 		/// Gets the names of the fonts referenced in the book but not found on this machine.
 		/// </summary>
 		/// <param name="bookPath">The path to the book folder</param>
-		private List<string> GetMissingFonts(string bookPath)
+		/// Returns a list of the fonts that the book reference but which are not installed, or null if there was an error
+		private List<string> GetMissingFonts(string bookPath, out bool success)
 		{
 			var missingFonts = new List<string>();
 
 			using (var reportFile = SIL.IO.TempFile.CreateAndGetPathButDontMakeTheFile())
 			{
 				string bloomArguments = $"getfonts --bookpath \"{bookPath}\" --reportpath \"{reportFile.Path}\"";
-				bool success = StartAndWaitForBloomCli(bloomArguments, kGetFontsTimeoutSecs * 1000, out int exitCode, out string stdOut, out string stdError);
+				bool subprocessSuccess = StartAndWaitForBloomCli(bloomArguments, kGetFontsTimeoutSecs * 1000, out int exitCode, out string stdOut, out string stdError);
 
-				if (!success)
+				if (!subprocessSuccess)
 				{
 					_logger.LogError("Error: Could not determine fonts from book located at " + bookPath);
+					success = false;
 					return missingFonts;
 				}
 
@@ -835,6 +847,7 @@ namespace BloomHarvester
 				missingFonts = GetMissingFonts(bookFontNames);
 			}
 
+			success = true;
 			return missingFonts;
 		}
 

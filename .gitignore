@@ -6,6 +6,7 @@ output/
 bin/
 obj/
 .vs/
+build/Download
 
 *.bak
 *.vsp

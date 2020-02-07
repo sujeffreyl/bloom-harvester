@@ -3,6 +3,9 @@ param (
     [Switch]$clean
 )
 
+# Reference a custom commandlet that allows a synchronous delete
+. "$PSScriptRoot\removeFileSystemItemSynchronous.ps1"
+
 $downloadDir = "$PSScriptRoot\Download"
 $libDir = "$PSScriptRoot\..\lib\dotnet\";
 #$debugBuildDir = "$PSScriptRoot\..\src\Harvester\bin\Debug\net461";
@@ -20,10 +23,9 @@ Invoke-Expression $command
 
 If ($clean) {
     ForEach ($folder in $folders) {
-        Write-Host "Cleaning directory: $($folder)."
-        Remove-Item -Path "$($folder)/*" -Recurse -ErrorAction Ignore
+        Write-Host "Cleaning directory: $($folder)."        
+        Remove-FileSystemItem "$($folder)/*" -Recurse
     }
-    Start-Sleep -Seconds 2
 }
 
 ForEach ($folder in $folders) {

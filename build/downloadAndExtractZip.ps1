@@ -7,9 +7,17 @@
 
 Add-Type -assemblyname 'System.IO.Compression.FileSystem' #Used for ZipFile.ExtractToDirectoy
 
+# Reference a custom commandlet that allows a synchronous delete
+. "$PSScriptRoot\removeFileSystemItemSynchronous.ps1"
 
-#Clean the destination directory
-Remove-Item $outputDestination -Recurse -ErrorAction Ignore
+
+# Clean the destination directory, if necessary
+# Note that recursively removely files/directories is inherently asynchronous at the Windows API level,
+# so using a custom commandlet instead of the native Remove-Item -Recurse,
+# which is both unreliable (may fail) and a bit misleading (even after it returns, we don't know for how much longer deletes will still be pending)
+if (Test-Path $outputDestination) {
+    Remove-FileSystemItem $outputDestination -Recurse
+}
 
 
 $downloadDir = "$PSScriptRoot\Download"
@@ -27,14 +35,7 @@ If (-NOT $skipDownload -OR -Not (Test-Path -Path $downloadedZipFilePath -PathTyp
     $webClient.DownloadFile($url, $downloadedZipFilePath)
 } else {
     Write-Host "Re-using previous download: $($downloadedZipFilePath)";
-
-    # Give some time for the destination directory to be fully deleted
-    Sleep 1
 }
 
 # Unzip
 [System.IO.Compression.ZipFile]::ExtractToDirectory($downloadedZipFilePath, "$($outputDestination)")
-
-# ENHANCE: At this point, the files are unzipped with the wrong timestamp. I suspect the timestamp is in UTC time,
-# (which may be in the future for a lot of people). If we really cared about making it accurate,
-# I guess we could update the timestamp of those files right here.

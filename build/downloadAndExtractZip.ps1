@@ -7,6 +7,17 @@
 
 Add-Type -assemblyname 'System.IO.Compression.FileSystem' #Used for ZipFile.ExtractToDirectoy
 
+# Reference a custom commandlet that allows a synchronous delete
+. "$PSScriptRoot\removeFileSystemItemSynchronous.ps1"
+
+
+# Clean the destination directory, if necessary
+# Note that recursively removely files/directories is inherently asynchronous at the Windows API level,
+# so using a custom commandlet instead of the native Remove-Item -Recurse,
+# which is both unreliable (may fail) and a bit misleading (even after it returns, we don't know for how much longer deletes will still be pending)
+if (Test-Path $outputDestination) {
+    Remove-FileSystemItem $outputDestination -Recurse
+}
 
 
 $downloadDir = "$PSScriptRoot\Download"
@@ -25,9 +36,6 @@ If (-NOT $skipDownload -OR -Not (Test-Path -Path $downloadedZipFilePath -PathTyp
 } else {
     Write-Host "Re-using previous download: $($downloadedZipFilePath)";
 }
-
-#Clean the destination directory
-Remove-Item $outputDestination -Recurse -ErrorAction Ignore
 
 # Unzip
 [System.IO.Compression.ZipFile]::ExtractToDirectory($downloadedZipFilePath, "$($outputDestination)")

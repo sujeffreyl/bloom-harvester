@@ -3,11 +3,17 @@ param (
     [Switch]$clean
 )
 
+# Reference a custom commandlet that allows a synchronous delete
+. "$PSScriptRoot\removeFileSystemItemSynchronous.ps1"
+
 $downloadDir = "$PSScriptRoot\Download"
 $libDir = "$PSScriptRoot\..\lib\dotnet\";
-$debugBuildDir = "$PSScriptRoot\..\src\Harvester\bin\Debug\net461";
-$releaseBuildDir = "$PSScriptRoot\..\src\Harvester\bin\Release\net461";
-$folders = $libDir, $debugBuildDir, $releaseBuildDir
+#$debugBuildDir = "$PSScriptRoot\..\src\Harvester\bin\Debug\net461";
+#$releaseBuildDir = "$PSScriptRoot\..\src\Harvester\bin\Release\net461";
+
+# Now, only need to copy to libDir... the build will take care of copying to the build dirs instead.
+#$folders = $libDir, $debugBuildDir, $releaseBuildDir
+$folders = $libDir
 
 # Download/extract/copy dependencies from Bloom Desktop
 $dependenciesDir = "$($downloadDir)\UnzippedDependencies"
@@ -17,10 +23,9 @@ Invoke-Expression $command
 
 If ($clean) {
     ForEach ($folder in $folders) {
-        Write-Host "Cleaning directory: $($folder)."
-        Remove-Item -Path "$($folder)/*" -Recurse -ErrorAction Ignore
+        Write-Host "Cleaning directory: $($folder)."        
+        Remove-FileSystemItem "$($folder)/*" -Recurse
     }
-    Start-Sleep -Seconds 2
 }
 
 ForEach ($folder in $folders) {

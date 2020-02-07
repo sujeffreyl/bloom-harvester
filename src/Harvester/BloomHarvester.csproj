@@ -58,4 +58,8 @@
 			<HintPath>..\..\lib\dotnet\YouTrackSharp.dll</HintPath>
 		</Reference>
 	</ItemGroup>
+
+	<Target Name="PreBuild" BeforeTargets="PreBuildEvent">
+	  <Exec Command="xcopy /S /Y /I /Q /D ..\..\lib\dotnet $(OutDir)&#xD;&#xA;" />
+	</Target>
 </Project>

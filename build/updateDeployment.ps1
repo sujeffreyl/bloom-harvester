@@ -8,63 +8,70 @@ $backupOfPreviousDir= "$($harvestRootDir)\ReleasePrev"
 
 $VerbosePreference = "Continue";
 
-# Clean the output directory
-# Start cleaning sooner rather than later due to timing issues
-# (This step can have a small but noticeable delay before it's finished deleting, and I guess Powershell sometimes executes certain commands prematurely,
-# So I guess commands can get executed in a funny order?
-# If you try to delete the entire directory here, this can cause UnauthorizedAccess exceptions to be thrown
-# If just deleting the directory contents, I wonder if it's possible to copy a new file here, then end up accidentally deleting it if things were executed in the wrong order.
-#
-# To avoid any strange stuff like that, we start deleting this directory long before it's needed)
-Remove-Item -Path "$($outputDir)" -Recurse -ErrorAction Ignore
-Remove-Item -Path "$($backupOfPreviousDir)" -Recurse -ErrorAction Ignore
-
+# Reference a custom commandlet that allows a synchronous delete
+. "$PSScriptRoot\removeFileSystemItemSynchronous.ps1"
 
 $downloadDir = "$PSScriptRoot\Download"
 
 # ENHANCE: Check if we already have the latest version
 
-# Download the latest build (if necessary)
+# Download the latest build (if requested)
 $unzipDestination = "$($downloadDir)\Unzipped"
 $command = "$($PSScriptRoot)\downloadAndExtractZip.ps1 -URL https://build.palaso.org/guestAuth/repository/downloadAll/Bloom_HarvesterMasterContinuous/latest.lastSuccessful -Filename harvester.zip -Output $($downloadDir)\Unzipped $(If ($skipDownload) { "-skipDownload"})"
 Invoke-Expression $command
 
-# Download/extract/copy dependencies from Bloom Desktop
-$dependenciesDir = "$($downloadDir)\UnzippedDependencies"
-$command = "$($PSScriptRoot)\downloadAndExtractZip.ps1 -URL https://build.palaso.org/guestAuth/repository/downloadAll/bt222/latest.lastSuccessful -Filename bloom.zip -Output $($dependenciesDir) $(If ($skipDownload) { "-skipDownload"})"
-Invoke-Expression $command
+# Copy from the unzip destination
+# Precondition: This copy operation expects the destination folder not to exist. (So that it can rename Release -> ReleaseNext, instead of mkaing ReleaseNext\Release
+If (Test-Path $outputDir) {
+    # Clean the output directory
+    Remove-FileSystemItem "$($outputDir)" -Recurse
+}
 
-# Ensure the output directory exists
-New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
-New-Item -ItemType Directory -Force -Path "$($outputDir)\Firefox" | Out-Null
-
-# Copy from the unzip destination into the correct output structure
-Copy-Item "$($unzipDestination)\Release\*" -Destination "$($outputDir)\"
-Copy-Item "$($dependenciesDir)\bin\Release\Firefox\*" -Destination "$($outputDir)\Firefox"
-Copy-Item "$($dependenciesDir)\output\browser" -Destination "$($outputDir)\" -Recurse
-Copy-Item "$($dependenciesDir)\DistFiles" -Destination "$($outputDir)\" -Recurse
-Move-Item "$($outputDir)\DistFiles\localization" -Destination "$($outputDir)\"
+Copy-Item "$($unzipDestination)\Release\" -Destination "$($outputDir)\" -Recurse
 Write-Host "Setup of Next version done."
 Write-Host
 
-
 # Close current Harvester and RestartOnCrash
+#
+# First check if the Harvester's Bloom subprocess is running to attempt to be polite and not kill it if Harvester is actively working on something.
+# (This would get a book stuck in the InProgress state, which is moderately annoying, but if a book is stuck in InProgress for too long,
+# the Harvester will eventually decide it's stuck and re-process it.)
+# If we exceed the max number of tries though, we'll just forcibly close Bloom so we can continue updating.
+$bloomExePath = "$($currentVersionDir)\Bloom.exe"
+$maxTries = 5;
+for ($tryNumber = 0; $tryNumber -lt $maxTries; $tryNumber++) {
+    # This is just an approximation... if Bloom is running, then that definitely shows Harvester is working on a book.
+    # But if Bloom isn't running, we're not 100% sure. Harvester might still be working on a book, e.g. doing downloading or uploading
+    # We'll just have to take our best guess though.
+    if (0 -eq ((Get-Process -Name "Bloom" -ErrorAction Ignore | Where-Object { $_.Path -eq $bloomExePath }).count )) {
+        # Running Bloom process count is equal to 0.
+        # Let's go ahead and continue
+        break
+    } else {
+        # Hmm. Bloom is running. harvester seems to be working on something.
+        # Maybe let's wait for a bit and see if it goes away.
+        Write-Host "Did not update Harvester yet because Bloom subprocess is running. Will retry again 60 seconds.";
+        sleep 60;  # seconds
+    }
+}
+
+
 Write-Host "Killing any existing Harvester-related processes."
 $restartOnCrashPath = "$($harvestRootDir)\RestartOnCrash\RestartOnCrash.exe"
 $harvesterExePath = "$($currentVersionDir)\BloomHarvester.exe"
 Get-Process -Name "RestartOnCrash" -ErrorAction Ignore | Where-Object { $_.Path -eq $restartOnCrashPath } | Stop-Process -Verbose
 Get-Process -Name "BloomHarvester" -ErrorAction Ignore | Where-Object { $_.Path -eq $harvesterExePath } | Stop-Process -Verbose
-#Stop-Process -Name "RestartOnCrash" #ENHANCE: It's better to find a process whose path is the expected path, gets its ID, and then kill it by ID
-#Stop-Process -Name "BloomHarvester"
+# This is needed to shutdown the Bloom subprocess in case the Harvester is in the middle of calling Bloom to process a book
+Get-Process -Name "Bloom" -ErrorAction Ignore | Where-Object { $_.Path -eq $bloomExePath } | Stop-Process -Verbose
 
 Write-Host
 Write-Host "Swapping to next version"
+Remove-FileSystemItem "$($backupOfPreviousDir)" -Recurse
 Write-Host "Moving current to backup location $($backupOfPreviousDir)";
 Copy-Item "$($currentVersionDir)" -Destination "$($backupOfPreviousDir)" -Recurse
-Remove-Item -Path "$($currentVersionDir)" -Recurse
+Remove-FileSystemItem "$($currentVersionDir)" -Recurse
 
 # Wait a while to make sure items are fully removed.
-Start-Sleep -Seconds 3
 Write-Host "Copying new build to current location $($currentVersionDir)";
 New-Item -ItemType Directory -Force -Path $currentVersionDir | Out-Null
 Copy-Item "$($outputDir)\*" -Destination $currentVersionDir -Recurse -Force

@@ -125,6 +125,9 @@ namespace BloomHarvester
 		[Option("skipUploadEPub", Required = false, Default = false, HelpText = "If true, will prevent the .epub artifact from being uploaded.")]
 		public bool SkipUploadEPub { get; set; }
 
+		[Option("skipUploadThumbnails", Required = false, Default = false, HelpText = "If true, will prevent new thumbnails from being created and uploaded.")]
+		public bool SkipUploadThumbnails { get; set; }
+
 		public virtual string GetPrettyPrint()
 		{
 			return $"mode: {Mode}\n" +

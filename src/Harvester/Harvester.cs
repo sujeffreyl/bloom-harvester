@@ -905,11 +905,12 @@ namespace BloomHarvester
 
 			using (var folderForUnzipped = new TemporaryFolder("BloomHarvesterStagingUnzipped"))
 			{
-				using (var folderForZipped = new TemporaryFolder("BloomHarvesterStagingZipped"))
+				using (var folderForZipped = new TemporaryFolder("BloomHarvesterStaging"))
 				{
 					var components = new S3UrlComponents(downloadUrl);
 					string zippedBloomDOutputPath = Path.Combine(folderForZipped.FolderPath, $"{components.BookTitle}.bloomd");
 					string epubOutputPath = Path.Combine(folderForZipped.FolderPath, $"{components.BookTitle}.epub");
+					string thumbnailInfoPath = Path.Combine(folderForZipped.FolderPath, "thumbInfo.txt");
 
 					string bloomArguments = $"createArtifacts \"--bookPath={downloadBookDir}\" \"--collectionPath={collectionFilePath}\"";
 					if (!_options.SkipUploadBloomDigitalArtifacts)
@@ -920,6 +921,11 @@ namespace BloomHarvester
 					if (!_options.SkipUploadEPub)
 					{
 						bloomArguments += $" \"--epubOutputPath={epubOutputPath}\"";
+					}
+
+					if (!_options.SkipUploadThumbnails)
+					{
+						bloomArguments += $" \"--thumbnailOutputInfoPath={thumbnailInfoPath}\"";
 					}
 
 					// Start a Bloom command line in a separate process
@@ -970,6 +976,11 @@ namespace BloomHarvester
 						if (!_options.SkipUploadEPub)
 						{
 							UploadEPubArtifact(epubOutputPath, s3FolderLocation);
+						}
+
+						if (!_options.SkipUploadThumbnails)
+						{
+							UploadThumbnails(thumbnailInfoPath, s3FolderLocation);
 						}
 					}
 				}
@@ -1076,6 +1087,34 @@ namespace BloomHarvester
 		{
 			_logger.TrackEvent("Upload .epub");
 			_s3UploadClient.UploadFile(epubPath, $"{s3FolderLocation}/epub");
+		}
+
+		/// <summary>
+		/// Uploads the thumbnails to S3
+		/// </summary>
+		/// <param name="thumbnailInfoPath">This is a path to a TEXT file which contains information about where to find the actual thumbnails. The thumbnail paths should be written one per line in this file.</param>
+		/// <param name="s3FolderLocation">The S3 path to upload to</param>
+		private void UploadThumbnails(string thumbnailInfoPath, string s3FolderLocation)
+		{
+			if (SIL.IO.RobustFile.Exists(thumbnailInfoPath))
+			{
+				// First parse the info file, which is NOT the actual thumbnail image bits. It just contains the filepath strings.
+				string[] lines = SIL.IO.RobustFile.ReadAllLines(thumbnailInfoPath);
+				if (lines == null)
+				{
+					return;
+				}
+
+				foreach (var thumbnailPath in lines)
+				{
+					// These paths should point to the locations of the actual thumbnails. Upload them to S3.
+					if (SIL.IO.RobustFile.Exists(thumbnailPath))
+					{
+						_logger.TrackEvent("Upload thumbnail");
+						_s3UploadClient.UploadFile(thumbnailPath, $"{s3FolderLocation}/thumbnails");
+					}
+				}
+			}
 		}
 
 	}

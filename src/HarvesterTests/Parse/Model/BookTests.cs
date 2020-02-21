@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using BloomHarvester;
 using BloomHarvester.Parse.Model;
 using Newtonsoft.Json;
 using NUnit.Framework;
@@ -60,6 +61,41 @@ namespace BloomHarvesterTests.Parse.Model
 			string bookJson = JsonConvert.SerializeObject(book);
 			string expectedJson = "{\"harvestState\":\"Done\",\"harvesterMajorVersion\":1,\"harvesterMinorVersion\":0,\"harvestStartedAt\":{\"__type\":\"Date\",\"iso\":\"2019-09-11T00:00:00.000Z\"},\"harvestLog\":[],\"baseUrl\":\"www.amazon.com\",\"title\":null,\"inCirculation\":null,\"langPointers\":null,\"uploader\":null,\"show\":{\"epub\":{\"harvester\":true,\"librarian\":true,\"user\":true},\"pdf\":{\"harvester\":true,\"librarian\":false,\"user\":false},\"bloomReader\":{\"harvester\":true,\"librarian\":false},\"readOnline\":{\"harvester\":true,\"user\":true}},\"objectId\":null}";
 			Assert.AreEqual(expectedJson, bookJson);
+		}
+
+		[Test]
+		public void GetBloomLibraryBookDetailLink_Prod_PopulatesLink()
+		{
+			var book = new Book();
+			book.ObjectId = "myObjectId";
+
+			string url = book.GetDetailLink(EnvironmentSetting.Prod);
+
+			Assert.That(url, Is.EqualTo("https://bloomlibrary.org/browse/detail/myObjectId"));
+		}
+
+		[Test]
+		public void GetBloomLibraryBookDetailLink_Dev_PopulatesLink()
+		{
+			var book = new Book();
+			book.ObjectId = "myObjectId";
+
+			string url = book.GetDetailLink(EnvironmentSetting.Dev);
+
+			Assert.That(url, Is.EqualTo("https://dev.bloomlibrary.org/browse/detail/myObjectId"));
+		}
+
+		[TestCase(null)]
+		[TestCase("")]
+		[TestCase(" ")]
+		public void GetBloomLibraryBookDetailLink_BadInput_ErrorReported(string badObjectId)
+		{
+			var book = new Book();
+			book.ObjectId = badObjectId;
+
+			string url = book.GetDetailLink(EnvironmentSetting.Dev);
+
+			Assert.That(url, Is.Null);
 		}
 	}
 }

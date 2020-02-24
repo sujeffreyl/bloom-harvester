@@ -76,7 +76,7 @@ namespace BloomHarvester
 			}
 			catch (Exception e)
 			{
-				YouTrackIssueConnector.ReportExceptionToYouTrack(e, "An exception was thrown which was not handled by the program.", EnvironmentSetting.Unknown);
+				YouTrackIssueConnector.ReportExceptionToYouTrack(e, "An exception was thrown which was not handled by the program.", null, EnvironmentSetting.Unknown);
 				throw;
 			}
 		}
@@ -100,6 +100,9 @@ namespace BloomHarvester
 		// ENHANCE: Perhaps this parameter should also suppress creating YouTrack issues?
 		[Option("suppressLogs", Required = false, Default = false, HelpText = "If true, will prevent log messages from being logged to the log environment (which may incur fees). Will write those logs to Standard Error instead.")]
 		public bool SuppressLogs { get; set; }
+
+		[Option("suppressErrors", Required = false, Default = false, HelpText = "If true, will prevent errors from being reported to the issue tracking system")]
+		public bool SuppressErrors{ get; set; }
 
 		[Option("queryWhere", Required = false, Default = "", HelpText = "If specified, adds a WHERE clause to the request query when retrieving the list of books to process. This should be in the JSON format used by Parse REST API to pass WHERE clauses. See https://docs.parseplatform.org/rest/guide/#query-constraints")]
 		public string QueryWhere { get; set; }

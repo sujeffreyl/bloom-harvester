@@ -15,16 +15,29 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 		private static readonly string _youTrackProjectKeyErrors = "BH";  // Or "SB" for Sandbox
 		private static readonly string _youTrackProjectKeyMissingFonts = "BH";  // Or "SB" for Sandbox
 
-		private static void ReportToYouTrack(string projectKey, string summary, string description, string consoleMessage, bool exitImmediately)
+		internal static bool Disabled { get; set; }	// Should default to Not Disabled
+
+		private static void ReportToYouTrack(string projectKey, string summary, string description, bool exitImmediately)
 		{
+			Console.Error.WriteLine("ERROR: " + summary);
+			Console.Error.WriteLine("==========================");
+			Console.Error.WriteLine(description);
+			Console.Error.WriteLine("==========================");
+			Console.Error.WriteLine("==========================");
 #if DEBUG
-			Console.Out.WriteLine("Issue caught but skipping creating YouTrack issue because running in DEBUG mode. " + consoleMessage);
+			Console.Out.WriteLine("***Issue caught but skipping creating YouTrack issue because running in DEBUG mode.***");
 #else
-			Console.Out.WriteLine(consoleMessage);
-			string youTrackIssueId = SubmitToYouTrack(summary, description, projectKey);
-			if (!String.IsNullOrEmpty(youTrackIssueId))
+			if (Disabled)
 			{
-				Console.Out.WriteLine($"Created YouTrack issue {youTrackIssueId}");
+				Console.Out.WriteLine("***Issue caught but skipping creating YouTrack issue because error reporting to YouTrack is disabled.***");
+			}
+			else
+			{
+				string youTrackIssueId = SubmitToYouTrack(summary, description, projectKey);
+				if (!String.IsNullOrEmpty(youTrackIssueId))
+				{
+					Console.Out.WriteLine($"Created YouTrack issue {youTrackIssueId}");
+				}
 			}
 #endif
 
@@ -57,27 +70,24 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 			youTrackIssue.Summary = summary;
 			youTrackIssue.Description = description;
 			string youTrackIssueId = issueManagement.CreateIssue(youTrackIssue);
-
+			
 			return youTrackIssueId;
 		}
 
-		internal static void ReportExceptionToYouTrack(Exception exception, string additionalDescription, EnvironmentSetting environment, bool exitImmediately = true)
+		internal static void ReportExceptionToYouTrack(Exception exception, string additionalDescription, Parse.Model.Book book, EnvironmentSetting environment, bool exitImmediately = true)
 		{
 			string summary = $"[BH] [{environment}] Exception \"{exception.Message}\"";
-			string description = GetIssueDescriptionFromException(exception, additionalDescription, environment);
-			string consoleMessage = "Exception was:\n" + exception.ToString();
+			string description =
+				additionalDescription + "\n\n" +
+				GetDiagnosticInfo(book, environment) + "\n\n" +
+				GetIssueDescriptionFromException(exception);
 
-			ReportToYouTrack(_youTrackProjectKeyErrors, summary, description, consoleMessage, exitImmediately);
+			ReportToYouTrack(_youTrackProjectKeyErrors, summary, description, exitImmediately);
 		}
 
-		private static string GetIssueDescriptionFromException(Exception exception, string additionalDescription, EnvironmentSetting environment)
+		private static string GetIssueDescriptionFromException(Exception exception)
 		{
 			StringBuilder bldr = new StringBuilder();
-			bldr.AppendLine($"Error Report from Bloom Harvester on {DateTime.UtcNow.ToUniversalTime()} (UTC):");
-			bldr.AppendLine($"Environment: {environment}");
-			bldr.AppendLine(additionalDescription);
-			bldr.AppendLine();
-
 			if (exception != null)
 			{
 				bldr.AppendLine("# Exception Info");    // # means Level 1 Heading in markdown.
@@ -113,37 +123,38 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 			return bldr.ToString();
 		}
 
-		public static void ReportErrorToYouTrack(string errorSummary, string errorDetails, EnvironmentSetting environment, Parse.Model.Book book = null)
+		public static void ReportErrorToYouTrack(string errorSummary, string errorDescription, string errorDetails, EnvironmentSetting environment, Parse.Model.Book book = null)
 		{
 			string summary = $"[BH] [{environment}] Error: {errorSummary}";
 
-			string description = "";
-			if (book != null)
-			{
-				description = $"Book: {book.ObjectId ?? "null"} ({book.BaseUrl ?? "No URL"})\n";
-			}
-			description += $"Environment: {environment}\n";
-			description += errorDetails;
+			string description =
+				errorDescription + '\n' +
+				'\n' +
+				GetDiagnosticInfo(book, environment) + '\n' +
+				errorDetails;
 
-			ReportToYouTrack(_youTrackProjectKeyErrors, summary, description, description, exitImmediately: false);
+			ReportToYouTrack(_youTrackProjectKeyErrors, summary, description, exitImmediately: false);
 		}
 
 		public static void ReportMissingFontToYouTrack(string missingFontName, string harvesterId, EnvironmentSetting environment, Parse.Model.Book book = null)
 		{
 			string summary = $"[BH] [{environment}] Missing Font: \"{missingFontName}\"";
 
-			string description;
-			if (book == null)
-			{
-				description = $"Missing font \"{missingFontName}\" on machine \"{harvesterId}\".";
-			}
-			else
-			{
-				description = $"Missing font \"{missingFontName}\" referenced in book {book.ObjectId} ({book.BaseUrl}) on machine \"{harvesterId}\".";
-			}
-			description += $"Environment: {environment}\n";
+			string description = $"Missing font \"{missingFontName}\" on machine \"{harvesterId}\".\n\n";
+			description += GetDiagnosticInfo(book, environment);
 
-			ReportToYouTrack(_youTrackProjectKeyMissingFonts, summary, description, description, exitImmediately: false);
+			ReportToYouTrack(_youTrackProjectKeyMissingFonts, summary, description, exitImmediately: false);
+		}
+
+		private static string GetDiagnosticInfo(Parse.Model.Book book, EnvironmentSetting environment)
+		{
+			var assemblyVersion = System.Reflection.Assembly.GetEntryAssembly()?.GetName()?.Version ?? new Version(0, 0);
+
+			return
+				(book == null ? "" : book.GetBookDiagnosticInfo(environment) + '\n') + 
+				$"Environment: {environment}\n" +
+				$"Harvester Version: {assemblyVersion.Major}.{assemblyVersion.Minor}\n" +
+				$"Time: {DateTime.UtcNow.ToUniversalTime()} (UTC)";
 		}
 	}
 }

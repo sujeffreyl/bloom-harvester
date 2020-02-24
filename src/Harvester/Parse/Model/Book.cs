@@ -148,5 +148,41 @@ namespace BloomHarvester.Parse.Model
 			}
 
 		}
+
+		// Prints out some diagnostic info about the book (for debugging a failed book)
+		// environment should be the environment of the BOOK not the Harvester. (i.e., it should probably be _parseDbEnvironment)
+		internal string GetBookDiagnosticInfo(EnvironmentSetting environment)
+		{
+			string diagnosticInfo =
+				$"BookId: {this.ObjectId}\n" +
+				$"URL: {this.GetDetailLink(environment) ?? "No URL"}\n" +
+				$"Title: {this.Title}";
+
+			return diagnosticInfo;
+		}
+
+		// Returns the link to the book detail page on Bloom Library
+		// If the book's ObjectId is null/etc, this method returns null as well.
+		public string GetDetailLink(EnvironmentSetting environment)
+		{
+			if (String.IsNullOrWhiteSpace(this.ObjectId))
+			{
+				return null;
+			}
+
+			string subdomain;
+			switch (environment)
+			{
+				case EnvironmentSetting.Prod:
+					subdomain = "";
+					break;
+				case EnvironmentSetting.Dev:
+				default:
+					subdomain = environment.ToString().ToLowerInvariant() + '.';
+					break;
+			}
+			string anchorReference = $"https://{subdomain}bloomlibrary.org/browse/detail/{this.ObjectId}";
+			return anchorReference;
+		}
 	}
 }

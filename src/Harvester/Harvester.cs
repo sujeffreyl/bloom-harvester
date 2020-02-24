@@ -53,6 +53,9 @@ namespace BloomHarvester
 		public Harvester(HarvesterOptions options)
 		{
 			_options = options;
+
+			YouTrackIssueConnector.Disabled = options.SuppressErrors;
+
 			var assemblyVersion = System.Reflection.Assembly.GetEntryAssembly()?.GetName()?.Version ?? new Version(0, 0);
 			this.Version = new Version(assemblyVersion.Major, assemblyVersion.Minor);	// Only consider the major and minor version
 
@@ -175,7 +178,7 @@ namespace BloomHarvester
 				try
 				{
 					Console.Out.WriteLine();
-
+					
 					var methodStopwatch = new Stopwatch();
 					methodStopwatch.Start();
 
@@ -319,7 +322,7 @@ namespace BloomHarvester
 				{
 					try
 					{
-						YouTrackIssueConnector.ReportExceptionToYouTrack(e, $"Unhandled exception thrown while running Harvest() function.", _parseDBEnvironment, exitImmediately: false);
+						YouTrackIssueConnector.ReportExceptionToYouTrack(e, $"Unhandled exception thrown while running Harvest() function.", null, _parseDBEnvironment, exitImmediately: false);
 					}
 					catch (Exception)
 					{
@@ -446,7 +449,7 @@ namespace BloomHarvester
 					var analyzer = BookAnalyzer.FromFolder(downloadBookDir);
 					var collectionFilePath = analyzer.WriteBloomCollection(downloadBookDir);
 
-					isSuccessful &= CreateArtifacts(decodedUrl, downloadBookDir, collectionFilePath, book.ObjectId);
+					isSuccessful &= CreateArtifacts(decodedUrl, downloadBookDir, collectionFilePath, book);
 					if (isSuccessful)
 						UpdateSuitabilityofArtifacts(book, analyzer);
 				}
@@ -485,7 +488,7 @@ namespace BloomHarvester
 				isSuccessful = false;
 				string bookId = book?.ObjectId ?? "null";
 				string bookUrl = book?.BaseUrl ?? "null";
-				YouTrackIssueConnector.ReportExceptionToYouTrack(e, $"Unhandled exception thrown while processing book objectId={bookId}, baseUrl={bookUrl}", _parseDBEnvironment, exitImmediately: false);
+				YouTrackIssueConnector.ReportExceptionToYouTrack(e, $"Unhandled exception \"{e.Message}\" thrown.", book, _parseDBEnvironment, exitImmediately: false);
 
 				// Attempt to write to Parse that processing failed
 				if (!String.IsNullOrEmpty(book?.ObjectId))
@@ -899,7 +902,7 @@ namespace BloomHarvester
 			return fontFamilyDict;
 		}
 
-		private bool CreateArtifacts(string downloadUrl, string downloadBookDir, string collectionFilePath, string bookId)
+		private bool CreateArtifacts(string downloadUrl, string downloadBookDir, string collectionFilePath, Book book)
 		{
 			bool success = true;
 
@@ -934,7 +937,7 @@ namespace BloomHarvester
 					bool exitedNormally = StartAndWaitForBloomCli(bloomArguments, kCreateArtifactsTimeoutSecs * 1000, out int bloomExitCode, out string bloomStdOut, out string bloomStdErr);
 					bloomCliStopwatch.Stop();
 
-					string errorDetails = $"Book: {bookId ?? "null"}\n";
+					string errorDescription = "";
 					if (exitedNormally)
 					{
 						if (bloomExitCode == 0)
@@ -944,22 +947,23 @@ namespace BloomHarvester
 						else
 						{
 							success = false;
-							errorDetails += $"Bloom Command Line error:\nCreateArtifacts failed with exit code: {bloomExitCode}.";
+							errorDescription += $"Bloom Command Line error: CreateArtifacts failed with exit code: {bloomExitCode}.";
 						}
 					}
 					else
 					{
 						success = false;
-						errorDetails += $"Bloom Command Line error:\nCreateArtifacts terminated because it exceeded {kCreateArtifactsTimeoutSecs} seconds. Book Title: {components.BookTitle}.";
+						errorDescription += $"Bloom Command Line error: CreateArtifacts terminated because it exceeded {kCreateArtifactsTimeoutSecs} seconds.";
 					}
 
+					string errorDetails = "";
 					if (!success)
 					{
 						// Usually better just to report these right away. If BloomCLI didn't succeed, the subsequent Upload...() methods will probably throw an exception, except it'll be more confusing because it's not directly related to the root cause anymore.
 						_logger.LogError(errorDetails);
 						errorDetails += $"\n===StandardOut===\n{bloomStdOut ?? ""}\n";
 						errorDetails += $"\n===StandardError===\n{bloomStdErr ?? ""}";
-						YouTrackIssueConnector.ReportErrorToYouTrack("Harvester BloomCLI Error", errorDetails, _parseDBEnvironment);
+						YouTrackIssueConnector.ReportErrorToYouTrack("Harvester BloomCLI Error", errorDescription, errorDetails, _parseDBEnvironment, book);
 					}
 					else
 					{

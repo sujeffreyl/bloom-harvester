@@ -51,7 +51,7 @@ namespace BloomHarvester.Parse
 		/// <param name="str">The string representing the field value. This is the raw string, it should not be escaped with quotes or converted to JSON or anything.</param>
 		internal void UpdateFieldWithString(string fieldName, string fieldValue)
 		{
-			string jsonRepresentation = $"\"{fieldValue}\"";
+			string jsonRepresentation = fieldValue != null ? $"\"{fieldValue}\"" : "null";
 			UpdateFieldWithJson(fieldName, jsonRepresentation);
 		}
 
@@ -63,6 +63,12 @@ namespace BloomHarvester.Parse
 		internal void UpdateFieldWithNumber(string fieldName, object numericFieldValue)
 		{
 			string jsonRepresentation = numericFieldValue.ToString();   // No need for escaping with quotes (or braces or brackets or anything)
+			UpdateFieldWithJson(fieldName, jsonRepresentation);
+		}
+
+		internal void UpdateFieldWithObject(string fieldName, object obj)
+		{
+			string jsonRepresentation = JsonConvert.SerializeObject(obj);
 			UpdateFieldWithJson(fieldName, jsonRepresentation);
 		}
 

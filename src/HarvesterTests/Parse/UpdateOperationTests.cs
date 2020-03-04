@@ -94,5 +94,55 @@ namespace BloomHarvesterTests.Parse
 			expected2.Add("field2", "2");
 			CollectionAssert.AreEquivalent(expected2, result2, "_updatedFieldValues should no longer have field1 (overwritten when calling DeferUpdateOfFieldWithobject");
 		}
+
+		[Test]
+		public void UpdateFieldWithObject_Int_SameAsUpdateFieldWithNumber()
+		{
+			int value = 2;
+
+			var updateOp1 = new UpdateOperation();
+			updateOp1.UpdateFieldWithNumber("field", value);
+			string json1 = updateOp1.ToJson();
+
+			var updateOp2 = new UpdateOperation();
+			updateOp1.UpdateFieldWithObject("field", value);
+			string json2 = updateOp1.ToJson();
+
+			Assert.AreEqual(json1, json2);
+		}
+
+		[Test]
+		public void UpdateFieldWithObject_Double_SameAsUpdateFieldWithNumber()
+		{
+			double value = 3.14;
+
+			var updateOp1 = new UpdateOperation();
+			updateOp1.UpdateFieldWithNumber("field", value);
+			string json1 = updateOp1.ToJson();
+
+			var updateOp2 = new UpdateOperation();
+			updateOp1.UpdateFieldWithObject("field", value);
+			string json2 = updateOp1.ToJson();
+
+			Assert.AreEqual(json1, json2);
+		}
+
+
+		[TestCase(null)]
+		[TestCase("")]
+		[TestCase("a")]
+		[TestCase("Hello world")]
+		public void UpdateFieldWithObject_String_SameAsUpdateFieldWithString(string inputValue)
+		{
+			var updateOp1 = new UpdateOperation();
+			updateOp1.UpdateFieldWithString("field", inputValue);
+			string json1 = updateOp1.ToJson();
+
+			var updateOp2 = new UpdateOperation();
+			updateOp1.UpdateFieldWithObject("field", inputValue);
+			string json2 = updateOp1.ToJson();
+
+			Assert.AreEqual(json1, json2);
+		}
 	}
 }

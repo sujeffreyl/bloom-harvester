@@ -400,7 +400,7 @@ namespace BloomHarvester
 				_logger.TrackEvent("ProcessOneBook Start"); // After we check ShouldProcessBook
 
 				// Parse DB initial updates
-				book.UpdateOp.Clear();
+				//book.UpdateOp.Clear();
 				book.HarvestState = Parse.Model.HarvestState.InProgress.ToString();
 				book.HarvesterId = this.Identifier;
 				book.HarvesterMajorVersion = Version.Major;
@@ -410,7 +410,8 @@ namespace BloomHarvester
 				if (!_options.ReadOnly)
 				{
 					_currentBookId = book.ObjectId;
-					_parseClient.UpdateObject(book.GetParseClassName(), book.ObjectId, book.UpdateOp.ToJson());
+					//_parseClient.UpdateObject(book.GetParseClassName(), book.ObjectId, book.GetPendingUpdates().ToJson();
+					book.FlushUpdateToDatabase(_parseClient);
 				}
 
 				// Download the book
@@ -432,7 +433,7 @@ namespace BloomHarvester
 				}
 
 				// Process the book
-				book.UpdateOp.Clear();
+				//book.UpdateOp.Clear();
 				List<BaseLogEntry> harvestLogEntries = CheckForMissingFontErrors(downloadBookDir, book);
 				bool anyFontsMissing = harvestLogEntries.Any();
 				isSuccessful &= !anyFontsMissing;
@@ -463,14 +464,15 @@ namespace BloomHarvester
 				else
 				{
 					book.HarvestState = Parse.Model.HarvestState.Failed.ToString();
-					book.UpdateOp.RemoveUpdate(Book.kShowField);
+					//book.UpdateOp.RemoveUpdate(Book.kShowField);
 				}
 
 				// Write the updates
 				if (!_options.ReadOnly)
 				{
 					_currentBookId = null;
-					_parseClient.UpdateObject(book.GetParseClassName(), book.ObjectId, book.UpdateOp.ToJson());
+					//_parseClient.UpdateObject(book.GetParseClassName(), book.ObjectId, book.UpdateOp.ToJson());
+					book.FlushUpdateToDatabase(_parseClient);
 				}
 
 				if (!_options.SkipDownload)
@@ -495,10 +497,11 @@ namespace BloomHarvester
 				{
 					try
 					{
-						book.UpdateOp.Clear();
+						//book.UpdateOp.Clear();
 						book.HarvestState = Parse.Model.HarvestState.Failed.ToString();
 						book.HarvesterId = this.Identifier;
-						_parseClient.UpdateObject(book.GetParseClassName(), book.ObjectId, book.UpdateOp.ToJson());
+						//_parseClient.UpdateObject(book.GetParseClassName(), book.ObjectId, book.UpdateOp.ToJson());
+						book.FlushUpdateToDatabase(_parseClient);
 					}
 					catch (Exception)
 					{

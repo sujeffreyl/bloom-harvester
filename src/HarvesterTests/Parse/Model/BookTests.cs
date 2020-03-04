@@ -100,28 +100,150 @@ namespace BloomHarvesterTests.Parse.Model
 			Assert.That(url, Is.Null);
 		}
 
+		//[Test]
+		//public void UpdateMetadata_NotEqual_UpdateOpRegistered()
+		//{
+		//	// Setup
+		//	var book = new Book();
+		//	book.Features = new string[] { "talkingBook" };
+		//	//book.UpdateOp.Clear();
+		//	book.InitializeDatabaseVersion();
+
+		//	var metaData = new Bloom.Book.BookMetaData();
+		//	metaData.Features = new string[] { "talkingBook", "talkingBook:en" };
+
+		//	// Test
+		//	book.UpdateMetadataIfNeeded(metaData);
+
+		//	// Verification
+		//	var updateOp = new VSUnitTesting.PrivateObject(book.UpdateOp, new VSUnitTesting.PrivateType(typeof(UpdateOperation)));
+		//	var updateDict = (Dictionary<string, string>)updateOp.GetFieldOrProperty("_updatedFieldValues");
+
+		//	var expectedResult = new Dictionary<string, string>();
+		//	expectedResult.Add("features", "[\"talkingBook\", \"talkingBook:en\"]");
+		//	expectedResult.Add("updateSource", "\"bloomHarvester\"");	// This key should be present so Parse knows it's not a BloomDesktop upload
+		//	CollectionAssert.AreEquivalent(updateDict, expectedResult);
+		//}
+
 		[Test]
-		public void UpdateMetadata_NotEqual_UpdateOpRegistered()
+		public void GetPendingUpdates_ModifyAProperty_JsonUpdated()
 		{
-			// Setup
 			var book = new Book();
-			book.Features = new string[] { "talkingBook" };
-			book.UpdateOp.Clear();
+			book.HarvestState = HarvestState.New.ToString();	// Will be modified
+			book.HarvesterMajorVersion = 2;						// Will stay the same
 
-			var metaData = new Bloom.Book.BookMetaData();
-			metaData.Features = new string[] { "talkingBook", "talkingBook:en" };
+			book.InitializeDatabaseVersion();
 
-			// Test
-			book.UpdateMetadataIfNeeded(metaData);
+			// System under test
+			book.HarvestState = HarvestState.InProgress.ToString();
+			var pendingUpdatesResult = book.GetPendingUpdates();
 
 			// Verification
-			var updateOp = new VSUnitTesting.PrivateObject(book.UpdateOp, new VSUnitTesting.PrivateType(typeof(UpdateOperation)));
-			var updateDict = (Dictionary<string, string>)updateOp.GetFieldOrProperty("_updatedFieldValues");
+			string resultJson = pendingUpdatesResult.ToJson();
+			Assert.AreEqual("{\"updateSource\":\"bloomHarvester\",\"harvestState\":\"InProgress\"}", resultJson);
+		}
 
-			var expectedResult = new Dictionary<string, string>();
-			expectedResult.Add("features", "[\"talkingBook\", \"talkingBook:en\"]");
-			expectedResult.Add("updateSource", "\"bloomHarvester\"");	// This key should be present so Parse knows it's not a BloomDesktop upload
-			CollectionAssert.AreEquivalent(updateDict, expectedResult);
+		[Test]
+		public void GetPendingUpdates_ModifyAField_JsonUpdated()
+		{
+			var book = new Book();
+			book.Title = "My Test Book";    // This will stay the same
+			book.IsInCirculation = true;	// This will be modified
+
+			book.InitializeDatabaseVersion();
+
+			// System under test
+			book.IsInCirculation = false;
+			var pendingUpdatesResult = book.GetPendingUpdates();
+
+			// Verification
+			string resultJson = pendingUpdatesResult.ToJson();
+			Assert.AreEqual("{\"updateSource\":\"bloomHarvester\",\"inCirculation\":false}", resultJson);
+		}
+
+		[Test]
+		public void GetPendingUpdates_NonNullHarvestStartedAt_NoPendingUpdates()
+		{
+			var book = new Book();
+			book.HarvestStartedAt = new Date(new DateTime(2020, 03, 04));
+
+			book.InitializeDatabaseVersion();
+
+			// System under test
+			var pendingUpdatesResult = book.GetPendingUpdates();
+
+			// Verification
+			string resultJson = pendingUpdatesResult.ToJson();
+
+			// Show was not modified in this test. It shouldn't appear as an update.
+			Assert.IsFalse(resultJson.Contains("harvestStartedAt"));
+		}
+
+		[Test]
+		public void GetPendingUpdates_NonNullShow_NoPendingUpdates()
+		{
+			var book = new Book();
+			var jsonString = $"{{ \"pdf\": {{ \"harvester\": true }} }}";
+			book.Show = JsonConvert.DeserializeObject(jsonString);
+
+			book.InitializeDatabaseVersion();
+
+			// System under test
+			var pendingUpdatesResult = book.GetPendingUpdates();
+
+			// Verification
+			string resultJson = pendingUpdatesResult.ToJson();
+
+			// Show was not modified in this test. It shouldn't appear as an update.
+			Assert.IsFalse(resultJson.Contains("Show"), "Show");
+			Assert.IsFalse(resultJson.Contains("show"), "show");
+		}
+
+		[TestCase("a", "a", true)]
+		[TestCase("a", "b", false)]
+		[TestCase(1, 5/5, true)]	// True - evaluate to same
+		[TestCase(1, 2, false)]
+		[TestCase(1, 1.0f, false)]	// False - different types
+		[TestCase("1", 1, false)]   // False - different types
+		public void AreObjectsEqual_ScalarInput_ReturnsCorrectResult(object obj1, object obj2, bool expectedResult)
+		{
+			bool result = Book.AreObjectsEqual(obj1, obj2);
+			Assert.AreEqual(expectedResult, result);
+		}
+
+		[Test]
+		public void AreObjectsEqual_ArraysSameValuesButDifferentInstances_ReturnsTrue()
+		{
+			var array1 = new string[] { "a", "b", "c" };
+
+			var list2 = new List<string>();
+			list2.Add("a");
+			list2.Add("b");
+			list2.Add("c");
+			var array2 = list2.ToArray();
+
+			bool result = Book.AreObjectsEqual(array1, array2);
+			Assert.AreEqual(true, result, "Array");
+
+			var list1 = new List<string>(array1);
+			result = Book.AreObjectsEqual(list1, list2);
+			Assert.AreEqual(true, result, "List");
+		}
+
+		[TestCase(new string[] { "a", "b" }, new string[] { "a", "b", "c" }, TestName = "AreObjectsEqual_ArraysDifferentLengths_ReturnsFalse")]
+		[TestCase(new string[] { "a", "b" }, new string[] { "a", "b", "c" }, TestName = "AreObjectsEqual_ArraysSameLengthDifferentValue_ReturnsFalse")]
+		[TestCase(null, new string[] { }, TestName = "AreObjectsEqual_Arrays1stIsNull_ReturnsFalse")]
+		[TestCase(new string[] { }, null, TestName = "AreObjectsEqual_Arrays2ndIsNull_ReturnsFalse")]
+		public void AreObjectsEqual_DifferentArrays_ReturnsFalse(object[] array1, object[] array2)
+		{
+			bool result = Book.AreObjectsEqual(array1, array2);
+			Assert.AreEqual(false, result, "Array");
+
+			// Repeat for lists
+			var list1 = array1 != null ? new List<object>(array1) : null;
+			var list2 = array2 != null ? new List<object>(array2) : null;
+			result = Book.AreObjectsEqual(list1, list2);
+			Assert.AreEqual(false, result, "List");
 		}
 	}
 }

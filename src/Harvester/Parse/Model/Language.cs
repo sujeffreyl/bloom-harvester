@@ -18,6 +18,18 @@ namespace BloomHarvester.Parse.Model
 		[JsonProperty("name")]
 		public string Name { get; set; }
 
+		public override bool Equals(object obj)
+		{
+			if (!(obj is Language))
+				return false;
+
+			var other = (Language)obj;
+			return base.Equals(other)
+				&& this.IsoCode == other.IsoCode
+				&& this.EthnologueCode == other.EthnologueCode
+				&& this.Name == other.Name;
+		}
+
 		internal override string GetParseClassName()
 		{
 			return "language";

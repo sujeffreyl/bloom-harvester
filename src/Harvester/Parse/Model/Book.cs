@@ -1,110 +1,76 @@
 using Newtonsoft.Json;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 
 namespace BloomHarvester.Parse.Model
 {
-    [JsonObject(MemberSerialization = MemberSerialization.OptIn)]
-    public class Book : ParseObject
-    {
+	[JsonObject(MemberSerialization = MemberSerialization.OptIn)]
+	public class Book : ParseObject
+	{
 		public const string kHarvestStateField = "harvestState";
-	    public const string kShowField = "show";
+		public const string kShowField = "show";
+
+		private List<string> _updatedMembers = new List<string>();
+
+		private Book DatabaseVersion { get; set; }
 
 		public Book()
 		{
-			UpdateOp = new BookUpdateOperation();
+			//UpdateOp = new BookUpdateOperation();
 		}
 
-		internal BookUpdateOperation UpdateOp { get; set; }
+		public Book DeepClone()
+		{
+			// Dynamic object Show is not easily cloned,
+			// so easier for us to do this by serializing/deserializing JSON instead
+			string jsonOfThis = JsonConvert.SerializeObject(this);
+			var newBook = JsonConvert.DeserializeObject<Book>(jsonOfThis);
+			return newBook;
+		}
+
+		//internal BookUpdateOperation UpdateOp { get; set; }
+		// TODO: DELETE THIS PLACEHOLDER
+		// internal List<string> UpdateOp { get; set; }
 
 		// There are many more properties from the book table that we could add when they are needed.
 		// When adding a new property, you probably also need to add it to the list of keys selected in ParseClient.cs
 
 		#region Harvester-specific properties
-		private string _harvestState;
 		[JsonProperty(kHarvestStateField)]
-		public string HarvestState
-		{
-			get => _harvestState;
-			set
-			{
-				_harvestState = value;
-				UpdateOp.UpdateFieldWithString(kHarvestStateField, value);
-			}
-		}
+		public string HarvestState { get; set; }
 
-		private string _harvesterId;
 		[JsonProperty("harvesterId")]
-		public string HarvesterId
-		{
-			get => _harvesterId;
-			set
-			{
-				_harvesterId = value;
-				UpdateOp.UpdateFieldWithString("harvesterId", value);
-			}
-		}
+		public string HarvesterId { get; set; }
 
-		private int _harvesterMajorVersion;
 		/// <summary>
 		/// Represents the major version number of the last Harvester instance that attempted to process this book.
 		/// If the major version changes, then we will redo processing even of books that succeeded.
 		/// </summary>
 		[JsonProperty("harvesterMajorVersion")]
-		public int HarvesterMajorVersion
-		{
-			get => _harvesterMajorVersion;
-			set
-			{
-				_harvesterMajorVersion = value;
-				UpdateOp.UpdateFieldWithNumber("harvesterMajorVersion", value);
-			}
-		}
+		public int HarvesterMajorVersion { get; set; }
 
-		private int _harvesterMinorVersion;
 		/// <summary>
 		/// Represents the minor version number of the last Harvester instance that attempted to process this book.
 		/// If the minor version is updated, then we will redo processing of books that failed
 		/// </summary>
 		[JsonProperty("harvesterMinorVersion")]
-		public int HarvesterMinorVersion
-		{
-			get => _harvesterMinorVersion;
-			set
-			{
-				_harvesterMinorVersion = value;
-				UpdateOp.UpdateFieldWithNumber("harvesterMinorVersion", value);
-			}
-		}
+		public int HarvesterMinorVersion { get; set; }
 
-		private Parse.Model.Date _harvestStartedAt;
+
 		/// <summary>
 		/// The timestamp of the last time Harvester started processing this book
 		/// </summary>
 		[JsonProperty("harvestStartedAt")]
-		public Parse.Model.Date HarvestStartedAt
-		{
-			get => _harvestStartedAt;
-			set
-			{
-				_harvestStartedAt = value;
-				UpdateOp.UpdateFieldWithJson("harvestStartedAt", value.ToJson());
-			}
-		}
+		public Parse.Model.Date HarvestStartedAt { get; set; }
 
-		private List<string> _harvestLogEntries;
 		[JsonProperty("harvestLog")]
-		public List<string> HarvestLogEntries
-		{
-			get => _harvestLogEntries;
-			set
-			{
-				_harvestLogEntries = value;
-				UpdateOp.UpdateFieldWithJson("harvestLog", Book.ToJson(value));
-			}
-		}
+		public List<string> HarvestLogEntries { get; set; }
 		#endregion
 
 
@@ -125,17 +91,8 @@ namespace BloomHarvester.Parse.Model
 		[JsonProperty("uploader")]
 		public User Uploader;
 
-		private string[] _features;
 		[JsonProperty("features")]
-		public string[] Features
-		{
-			get => _features;
-			set
-			{
-				_features = value;
-				UpdateOp.UpdateFieldWithJson("features", ToJson(value));
-			}
-		}
+		public string[] Features { get; set; }
 
 		private dynamic _show;
 		/// <summary>
@@ -170,10 +127,9 @@ namespace BloomHarvester.Parse.Model
 			set
 			{
 				_show = value;
-				UpdateOp.DeferUpdateOfFieldWithObject(kShowField, value);
+				_updatedMembers.Add(kShowField);
 			}
 		}
-
 		#endregion
 
 
@@ -290,5 +246,179 @@ namespace BloomHarvester.Parse.Model
 			}
 		}
 
+		public void InitializeDatabaseVersion()
+		{
+			_updatedMembers.Clear();
+			DatabaseVersion = this.DeepClone();
+		}
+
+		public void FlushUpdateToDatabase(ParseClient database)
+		{
+			var pendingUpdates = this.GetPendingUpdates();
+			// TODO: Maybe check if there are any worhwhile updates first
+			var pendingUpdatesJson = pendingUpdates.ToJson();
+			//Console.Error.WriteLine("TODO: Write these updates: " + pendingUpdatesJson);
+
+			database.UpdateObject(this.GetParseClassName(), this.ObjectId, pendingUpdatesJson);
+
+			// TODO: Name should be something different
+			InitializeDatabaseVersion();
+		}
+
+		/// <summary>
+		/// Checks against the old database version to see which fields/properties have been updated and need to be written to the database
+		/// Note: Any dynamic objects are probably going to get updated every time. It's hard to compare them.
+		/// </summary>
+		/// <returns>BookUpdateOperation with the necessary updates</returns>
+		internal BookUpdateOperation GetPendingUpdates()
+		{
+			var updateRequest = new BookUpdateOperation();
+			var bookType = typeof(Book);
+
+			List<MemberInfo> fieldsAndProperties =
+				bookType.GetFields().Cast<MemberInfo>()
+				.Concat(bookType.GetProperties().Cast<MemberInfo>())
+				.Where(member => member.Name != "Show")
+				.Where(member => member.CustomAttributes.Any())
+				.Where(member => member.CustomAttributes.Any(attr => attr.AttributeType.FullName == "Newtonsoft.Json.JsonPropertyAttribute"))
+				.ToList();
+			
+			foreach (var memberInfo in fieldsAndProperties)
+			{
+				string propertyName = GetMemberJsonName(memberInfo);
+
+				object oldValue;
+				object newValue;
+
+				if (memberInfo is FieldInfo)
+				{
+					var fieldInfo = (FieldInfo)memberInfo;
+					oldValue = fieldInfo.GetValue(this.DatabaseVersion);
+					newValue = fieldInfo.GetValue(this);
+				}
+				else
+				{
+					// We know that everything here is supposed to be either a FieldInfo or PropertyInfo,
+					// so if it's not FieldInfo, it should be a propertyInfo
+					var propertyInfo = (PropertyInfo)memberInfo;
+					oldValue = propertyInfo.GetValue(this.DatabaseVersion);
+					newValue = propertyInfo.GetValue(this);
+				}
+
+				if (!AreObjectsEqual(oldValue, newValue))
+				{
+					updateRequest.UpdateFieldWithObject(propertyName, newValue);
+				}
+			}
+
+			// Now we handle ones that are manually tracked using _updatedMembers.
+			// This is designed for dynamic objects, for which the default Equals() function will probably not do what we want (since it's just a ref comparison)
+			foreach (var updatedMemberName in _updatedMembers ?? Enumerable.Empty<string>())
+			{
+				FieldInfo fieldInfo = bookType.GetField(updatedMemberName);
+				if (fieldInfo != null)
+				{
+					string memberName = GetMemberJsonName(fieldInfo);
+					object newValue = fieldInfo.GetValue(this);
+					updateRequest.UpdateFieldWithObject(memberName, newValue);
+				}
+				else
+				{
+					PropertyInfo propertyInfo = bookType.GetProperty(updatedMemberName);
+					if (propertyInfo != null)
+					{
+						string memberName = GetMemberJsonName(propertyInfo);
+						object newValue = propertyInfo.GetValue(this);
+						updateRequest.UpdateFieldWithObject(memberName, newValue);
+					}
+				}
+			}
+
+			return updateRequest;
+		}
+
+		internal static bool AreObjectsEqual(object obj1, object obj2)
+		{
+			// Careful, oldValue may be null. Make sure to avoid NullReferenceExceptions
+			if (obj1 == null)
+			{
+				return obj2 == null;
+			}
+			else if (obj2 == null)
+			{
+				// At this point, we know that obj1 was non-null, so if obj2 is null, we know they're different;
+				return false;
+
+				// For all code below here, we know that obj1 and obj2 are both non-null
+			}
+			else if (obj1.GetType().IsArray)
+			{
+				var array1 = (object[])obj1;
+				var array2 = (object[])obj2;
+
+				if (array1.Length != array2.Length)
+				{
+					// Different lengths... definitely not equal
+					return false;
+				}
+				else
+				{
+					// Now we know the lengths are the same. That makes checking this array for equality simpler.
+					for (int i = 0; i < array1.Length; ++i)
+					{
+						if (!array1[i].Equals(array2[i]))
+						{
+							return false;
+						}
+					}
+
+					return true;
+				}
+			}
+			else if (obj1 is IList && obj2 is IList)
+			{
+				var list1 = (IList)obj1;
+				var list2 = (IList)obj2;
+
+				if (list1.Count != list2.Count)
+				{
+					// Different lengths... definitely not equal
+					return false;
+				}
+				else
+				{
+					// Now we know the lengths are the same. That makes checking this array for equality simpler.
+					for (int i = 0; i < list1.Count; ++i)
+					{
+						if (!list1[i].Equals(list2[i]))
+						{
+							return false;
+						}
+					}
+
+					return true;
+				}
+			}
+			else
+			{
+				// Simple scalars
+				return obj1.Equals(obj2);
+			}
+		}
+
+		private string GetMemberJsonName(MemberInfo memberInfo)
+		{
+			string name = memberInfo.Name;
+			if (memberInfo.CustomAttributes?.FirstOrDefault()?.ConstructorArguments?.Any() == true)
+			{
+				string jsonMemberName = memberInfo.CustomAttributes.First().ConstructorArguments[0].Value as String;
+				if (!String.IsNullOrWhiteSpace(jsonMemberName))
+				{
+					name = jsonMemberName;
+				}
+			}
+
+			return name;
+		}
 	}
 }

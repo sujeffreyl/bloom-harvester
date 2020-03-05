@@ -26,8 +26,7 @@ namespace BloomHarvesterTests.Parse.Model
 
 			string resultJson = pointer.ToJson();
 
-			string expectedJson = "{\"__type\":\"Pointer\",\"className\":\"language\",\"objectId\":\"123\"}";
-			Assert.AreEqual(expectedJson, resultJson);
+			Assert.That(resultJson, Is.EqualTo("{\"__type\":\"Pointer\",\"className\":\"language\",\"objectId\":\"123\"}"));
 		}
 
 		[Test]
@@ -41,12 +40,11 @@ namespace BloomHarvesterTests.Parse.Model
 
 			bool result = pointer1.Equals(pointer2);
 
-			Assert.AreEqual(true, result);
+			Assert.That(result, Is.True);
 		}
 
-
 		[Test]
-		public void Pointer_Equals_SameObjectIdButDifferentUnderlying_ReturnsTue()
+		public void Pointer_Equals_SameObjectIdButDifferentUnderlying_ReturnsTrue()
 		{
 			var lang1 = new Language();
 			var lang2 = new Language();
@@ -65,8 +63,46 @@ namespace BloomHarvesterTests.Parse.Model
 
 			bool result = pointer1.Equals(pointer2);
 
-			Assert.AreEqual(true, result);
+			Assert.That(result, Is.True);
 		}
+
+		[Test]
+		public void Pointer_Equals_SameObjectIdButDifferentType_ReturnsFalse()
+		{
+			// Theoretically, it's hypothethically possible that pointers to different classes can happen to have the same objectId
+			// These are not the same though, because they point into different classes.
+			var pointer1 = new Pointer<Language>(null);
+			pointer1.ObjectId = "123";
+
+			var pointer2 = new Pointer<User>(null);
+			pointer2.ObjectId = "123";
+
+			bool result = pointer1.Equals(pointer2);
+
+			Assert.That(result, Is.False);
+		}
+
+		[Test]
+		public void Pointer_Equals_SameObjectIdButDifferentClass_ReturnsFalse()
+		{
+			// In this contrived scenario, we have two different Parse tables (aka classes)
+			// but which have the same schema. So hypothetically, it's not completely out of the picture that
+			// one could represent that using the same C# class (although... I think it's a bad idea)
+			// Then you'd have this contrived scenario where the pointer has the same objectId, and the same C# type, and differ only in className
+			// They are still different in this scenario though.
+			var pointer1 = new Pointer<Language>(null);
+			pointer1.ObjectId = "123";
+			pointer1.ClassName = "languages";
+
+			var pointer2 = new Pointer<Language>(null);
+			pointer2.ObjectId = "123";
+			pointer2.ClassName = "languagesDeprecated";
+
+			bool result = pointer1.Equals(pointer2);
+
+			Assert.That(result, Is.False);
+		}
+
 		[Test]
 		public void Pointer_Equals_DifferentReferences_ReturnsFalse()
 		{
@@ -80,7 +116,7 @@ namespace BloomHarvesterTests.Parse.Model
 
 			bool result = pointer1.Equals(pointer2);
 
-			Assert.AreEqual(false, result);
+			Assert.That(result, Is.False);
 		}
 
 		[Test]
@@ -88,7 +124,7 @@ namespace BloomHarvesterTests.Parse.Model
 		{
 			var pointer1 = new Pointer<Language>(new Language());
 			bool result = pointer1.Equals(null);
-			Assert.AreEqual(false, result);
+			Assert.That(result, Is.False);
 		}
 
 		[Test]
@@ -99,7 +135,7 @@ namespace BloomHarvesterTests.Parse.Model
 
 			bool result = pointer1.Equals(pointer2);
 
-			Assert.AreEqual(false, result);
+			Assert.That(result, Is.False);
 		}
 	}
 }

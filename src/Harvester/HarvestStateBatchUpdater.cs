@@ -58,9 +58,8 @@ namespace BloomHarvester
 
 				if (!IsDryRun)
 				{
-					book.UpdateOp.Clear();
 					book.HarvestState = newStateStr;
-					_parseClient.UpdateObject(book.GetParseClassName(), book.ObjectId, book.UpdateOp.ToJson());
+					book.FlushUpdateToDatabase(_parseClient);
 				}
 			}
 

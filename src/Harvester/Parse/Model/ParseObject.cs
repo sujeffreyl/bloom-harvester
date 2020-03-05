@@ -16,6 +16,11 @@ namespace BloomHarvester.Parse.Model
 		//Date updatedAt
 		//ACL  ACL
 
+		public override bool Equals(object other)
+		{
+			return (other is ParseObject) && this.ObjectId == ((ParseObject)other).ObjectId;
+		}
+
 		// Returns the class name (like a table name) of the class on the Parse server that this object corresponds to
 		internal abstract string GetParseClassName();
 

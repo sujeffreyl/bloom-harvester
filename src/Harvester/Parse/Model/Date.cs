@@ -18,7 +18,7 @@ namespace BloomHarvester.Parse.Model
 		}
 
 		// Fields and Properties
-		public string __type = "Date";
+		public readonly string __type = "Date";
 
 		private string _iso;
 		[JsonProperty("iso")]
@@ -32,11 +32,9 @@ namespace BloomHarvester.Parse.Model
 			set
 			{
 				_iso = value;
-				_utcTime = DateTime.ParseExact(value, kDateFormat, System.Globalization.CultureInfo.InvariantCulture);
+				_utcTime = DateTime.ParseExact(value, kDateFormat, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal);
 			}
 		}
-
-
 
 		private DateTime _utcTime;
 		[JsonIgnore]
@@ -53,6 +51,16 @@ namespace BloomHarvester.Parse.Model
 
 				_iso = _utcTime.ToString(kDateFormat);
 			}
+		}
+
+		public override bool Equals(object obj)
+		{
+			if (!(obj is Date))
+				return false;
+
+			Date other = (Date)obj;
+			return this.Iso == other.Iso
+				&& this.UtcTime == other.UtcTime;
 		}
 
 		public string ToJson()

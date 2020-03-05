@@ -10,7 +10,7 @@ namespace BloomHarvester.Parse.Model
 	public class Pointer<T> where T : ParseObject
 	{
 		[JsonProperty(Order=1)]
-		public string __type = "Pointer";
+		public const string __type = "Pointer";
 
 		[JsonProperty("className", Order=2)]
 		public string ClassName;
@@ -26,6 +26,16 @@ namespace BloomHarvester.Parse.Model
 			this.ClassName = value?.GetParseClassName() ?? "";
 			this.ObjectId = value?.ObjectId;
 			this.Value = value;
+		}
+
+		public override bool Equals(object obj)
+		{
+			if (!(obj is Pointer<T>))
+				return false;
+
+			var other = (Pointer<T>)obj;
+			return this.ObjectId == other.ObjectId
+				&& this.ClassName == other.ClassName;
 		}
 
 		internal string ToJson()

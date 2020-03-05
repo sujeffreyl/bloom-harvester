@@ -7,16 +7,13 @@ using System.Text;
 
 namespace BloomHarvester.Parse
 {
+	/// <summary>
+	/// Tracks the updates that need to be written to a row in Parse
+	/// Contains logic for being able to get the JSON body to send in the REST call to update the row object
+	/// </summary>
 	internal class UpdateOperation
 	{
-		private Dictionary<string, string> _updatedFieldValues = new Dictionary<string, string>();
-
-		/// <summary>
-		/// This dictionary stores the objects which are updated, but whose JSON value should wait to be determined until later (i.e, deferred)
-		/// The key is the name of the field that was updated.
-		/// The value is the object whose JSON should be determined at a later time, e.g. because the object's value (but not its reference) might be mutated between now and then.
-		/// </summary>
-		private Dictionary<string, object> _deferredUpdatedFieldObjects = new Dictionary<string, object>();
+		protected Dictionary<string, string> _updatedFieldValues = new Dictionary<string, string>();
 
 		internal UpdateOperation()
 		{
@@ -25,13 +22,11 @@ namespace BloomHarvester.Parse
 		virtual internal void Clear()
 		{
 			_updatedFieldValues.Clear();
-			_deferredUpdatedFieldObjects.Clear();
 		}
 
 		internal void RemoveUpdate(string fieldName)
 		{
 			_updatedFieldValues.Remove(fieldName);
-			_deferredUpdatedFieldObjects.Remove(fieldName);
 		}
 
 		/// <summary>
@@ -51,7 +46,7 @@ namespace BloomHarvester.Parse
 		/// <param name="str">The string representing the field value. This is the raw string, it should not be escaped with quotes or converted to JSON or anything.</param>
 		internal void UpdateFieldWithString(string fieldName, string fieldValue)
 		{
-			string jsonRepresentation = $"\"{fieldValue}\"";
+			string jsonRepresentation = fieldValue != null ? $"\"{fieldValue}\"" : "null";
 			UpdateFieldWithJson(fieldName, jsonRepresentation);
 		}
 
@@ -67,43 +62,19 @@ namespace BloomHarvester.Parse
 		}
 
 		/// <summary>
-		/// Registers a deferred update. Rather than taking the JSON of the object's current state, will take the JSON of the object's state
-		/// at the time when this UpdateOp's JSON is taken
-		/// What this accomplishes is to allow an object to continue to be modified up until the time that this updateOp is finally processed (which will invoke its ToJson())
-		/// and this class will automatically pick up the latest state
+		/// Registers that a field was updated
 		/// </summary>
 		/// <param name="fieldName">The name of the field that was updated.</param>
-		/// <param name="objectThatMightBeModified">The object whose value is being update</param>
-		internal void DeferUpdateOfFieldWithObject(string fieldName, object objectThatMightBeModified)
+		/// <param name="obj">The object's value. It will be serialized to JSON immediately in order to record the update</param>
+		internal void UpdateFieldWithObject(string fieldName, object obj)
 		{
-			_deferredUpdatedFieldObjects[fieldName] = objectThatMightBeModified;
-
-			_updatedFieldValues.Remove(fieldName);
-		}
-
-		/// <summary>
-		/// Processes all the update operations that were deferred till now, and adds their JSON to the normal collection of updated values
-		/// </summary>
-		private void ProcessDeferredUpdates()
-		{
-			foreach (var kvp in _deferredUpdatedFieldObjects)
-			{
-				string field = kvp.Key;
-				object objectThatWasUpdated = kvp.Value;
-
-				string currentJson = JsonConvert.SerializeObject(objectThatWasUpdated);
-				UpdateFieldWithJson(field, currentJson);
-			}
-
-			_deferredUpdatedFieldObjects.Clear();
+			string jsonRepresentation = JsonConvert.SerializeObject(obj);
+			UpdateFieldWithJson(fieldName, jsonRepresentation);
 		}
 
 		// Gets the JSON string to use in the Parse request to tell it all the fields to update
 		internal string ToJson()
 		{
-			// First flush all deferred updates to join the rest of the updates in _updatedFieldValues
-			ProcessDeferredUpdates();
-
 			if (!_updatedFieldValues.Any())
 			{
 				return "{}";

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,7 +13,7 @@ namespace BloomHarvesterTests.Parse
 		/// <summary>
 		/// A convenience method to get at a private variable more easily
 		/// </summary>
-		private static Dictionary<string, string> GetUpdatedFieldValues(BookUpdateOperation bookUpdateOp)
+		internal static Dictionary<string, string> GetUpdatedFieldValues(BookUpdateOperation bookUpdateOp)
 		{
 			// Note that the type needs to be of the class that actually defined the field. In this case, that's its base class.
 			var updateOpExaminer = new VSUnitTesting.PrivateObject(bookUpdateOp, new VSUnitTesting.PrivateType(typeof(UpdateOperation)));
@@ -51,6 +51,27 @@ namespace BloomHarvesterTests.Parse
 			expectedResult.Add("updateSource", "\"bloomHarvester\"");
 
 			CollectionAssert.AreEquivalent(expectedResult, result);
+		}
+
+		[Test]
+		public void BookUpdateOperation_Any_NoNewEntries_ReturnsFalse()
+		{
+			var bookUpdateOp = new BookUpdateOperation();
+
+			bool result = bookUpdateOp.Any();
+
+			Assert.AreEqual(false, result);
+		}
+
+		[Test]
+		public void BookUpdateOperation_Any_YesNewEntries_ReturnsTrue()
+		{
+			var bookUpdateOp = new BookUpdateOperation();
+			bookUpdateOp.UpdateFieldWithString("field", "a");
+
+			bool result = bookUpdateOp.Any();
+
+			Assert.AreEqual(true, result);
 		}
 	}
 }

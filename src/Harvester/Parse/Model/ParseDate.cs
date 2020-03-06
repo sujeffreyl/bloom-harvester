@@ -6,19 +6,22 @@ using System.Text;
 
 namespace BloomHarvester.Parse.Model
 {
+	/// <summary>
+	/// Represents the "Date" type defined by Parse.
+	/// </summary>
 	[JsonObject]
-	public class Date
+	public class ParseDate
 	{
 		private const string kDateFormat = "yyyy-MM-ddTHH:mm:ss.fffK";
 
 		// Constructor
-		public Date(DateTime dateTime)
+		public ParseDate(DateTime dateTime)
 		{
 			this.UtcTime = dateTime;
 		}
 
 		// Fields and Properties
-		public string __type = "Date";
+		public readonly string __type = "Date";
 
 		private string _iso;
 		[JsonProperty("iso")]
@@ -32,11 +35,9 @@ namespace BloomHarvester.Parse.Model
 			set
 			{
 				_iso = value;
-				_utcTime = DateTime.ParseExact(value, kDateFormat, System.Globalization.CultureInfo.InvariantCulture);
+				_utcTime = DateTime.ParseExact(value, kDateFormat, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal);
 			}
 		}
-
-
 
 		private DateTime _utcTime;
 		[JsonIgnore]
@@ -52,6 +53,24 @@ namespace BloomHarvester.Parse.Model
 				_utcTime = value.ToUniversalTime();
 
 				_iso = _utcTime.ToString(kDateFormat);
+			}
+		}
+
+		public override bool Equals(object obj)
+		{
+			if (!(obj is ParseDate))
+				return false;
+
+			ParseDate other = (ParseDate)obj;
+			// No need to compare UtcTime. 1) It's not actually serialized, and 2) is more error-prone to trivial differences showing up
+			return this.Iso == other.Iso;
+		}
+
+		public override int GetHashCode()
+		{
+			unchecked
+			{
+				return Iso?.GetHashCode() ?? 0;
 			}
 		}
 

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -6,17 +7,16 @@ using System.Text;
 
 namespace BloomHarvester.Parse
 {
+	/// <summary>
+	/// Tracks the updates that need to be written to a row in Parse
+	/// Contains logic for being able to get the JSON body to send in the REST call to update the row object
+	/// </summary>
 	internal class UpdateOperation
 	{
-		private Dictionary<string, string> _updatedFieldValues = new Dictionary<string, string>();
+		internal Dictionary<string, string> _updatedFieldValues = new Dictionary<string, string>();
 
 		internal UpdateOperation()
 		{
-		}
-
-		internal void Clear()
-		{
-			_updatedFieldValues.Clear();
 		}
 
 		/// <summary>
@@ -36,7 +36,7 @@ namespace BloomHarvester.Parse
 		/// <param name="str">The string representing the field value. This is the raw string, it should not be escaped with quotes or converted to JSON or anything.</param>
 		internal void UpdateFieldWithString(string fieldName, string fieldValue)
 		{
-			string jsonRepresentation = $"\"{fieldValue}\"";
+			string jsonRepresentation = fieldValue != null ? $"\"{fieldValue}\"" : "null";
 			UpdateFieldWithJson(fieldName, jsonRepresentation);
 		}
 
@@ -48,6 +48,17 @@ namespace BloomHarvester.Parse
 		internal void UpdateFieldWithNumber(string fieldName, object numericFieldValue)
 		{
 			string jsonRepresentation = numericFieldValue.ToString();   // No need for escaping with quotes (or braces or brackets or anything)
+			UpdateFieldWithJson(fieldName, jsonRepresentation);
+		}
+
+		/// <summary>
+		/// Registers that a field was updated
+		/// </summary>
+		/// <param name="fieldName">The name of the field that was updated.</param>
+		/// <param name="obj">The object's value. It will be serialized to JSON immediately in order to record the update</param>
+		internal void UpdateFieldWithObject(string fieldName, object obj)
+		{
+			string jsonRepresentation = JsonConvert.SerializeObject(obj);
 			UpdateFieldWithJson(fieldName, jsonRepresentation);
 		}
 

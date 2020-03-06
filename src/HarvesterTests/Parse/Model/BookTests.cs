@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using BloomHarvester;
+using BloomHarvester.Parse;
 using BloomHarvester.Parse.Model;
 using Newtonsoft.Json;
 using NUnit.Framework;
@@ -11,14 +13,13 @@ namespace BloomHarvesterTests.Parse.Model
 	public class BookTests
 	{
 		[Test]
-		public void SetHarvesterEvaluation_InsertsProperly()
+		public void Book_SetHarvesterEvaluation_InsertsProperly()
 		{
 			// Setup
 			var book = new Book()
 			{
-				BaseUrl = "www.amazon.com",
 				HarvestState = "Done",
-				HarvestStartedAt = new Date(new DateTime(2019, 9, 11, 0, 0, 0, DateTimeKind.Utc)),
+				HarvestStartedAt = new ParseDate(new DateTime(2019, 9, 11, 0, 0, 0, DateTimeKind.Utc)),
 				HarvesterMajorVersion = 1,
 				HarvesterMinorVersion = 0,
 				HarvestLogEntries = new List<string>()
@@ -32,19 +33,18 @@ namespace BloomHarvesterTests.Parse.Model
 
 			//Verify
 			string bookJson = JsonConvert.SerializeObject(book);
-			string expectedJson = "{\"harvestState\":\"Done\",\"harvesterMajorVersion\":1,\"harvesterMinorVersion\":0,\"harvestStartedAt\":{\"__type\":\"Date\",\"iso\":\"2019-09-11T00:00:00.000Z\"},\"harvestLog\":[],\"baseUrl\":\"www.amazon.com\",\"title\":null,\"inCirculation\":null,\"langPointers\":null,\"uploader\":null,\"show\":{\"epub\":{\"harvester\":false},\"pdf\":{\"harvester\":true},\"bloomReader\":{\"harvester\":true},\"readOnline\":{\"harvester\":true}},\"objectId\":null}";
-			Assert.AreEqual(expectedJson, bookJson);
+			string expectedJsonFragment = "\"show\":{\"epub\":{\"harvester\":false},\"pdf\":{\"harvester\":true},\"bloomReader\":{\"harvester\":true},\"readOnline\":{\"harvester\":true}}";
+			Assert.That(bookJson.Contains(expectedJsonFragment), Is.True);
 		}
 
 		[Test]
-		public void SetHarvesterEvaluation_UpdatesProperly()
+		public void Book_SetHarvesterEvaluation_UpdatesProperly()
 		{
 			// Setup
 			var book = new Book()
 			{
-				BaseUrl = "www.amazon.com",
 				HarvestState = "Done",
-				HarvestStartedAt = new Date(new DateTime(2019, 9, 11, 0, 0, 0, DateTimeKind.Utc)),
+				HarvestStartedAt = new ParseDate(new DateTime(2019, 9, 11, 0, 0, 0, DateTimeKind.Utc)),
 				HarvesterMajorVersion = 1,
 				HarvesterMinorVersion = 0,
 				HarvestLogEntries = new List<string>(),
@@ -59,12 +59,12 @@ namespace BloomHarvesterTests.Parse.Model
 
 			//Verify
 			string bookJson = JsonConvert.SerializeObject(book);
-			string expectedJson = "{\"harvestState\":\"Done\",\"harvesterMajorVersion\":1,\"harvesterMinorVersion\":0,\"harvestStartedAt\":{\"__type\":\"Date\",\"iso\":\"2019-09-11T00:00:00.000Z\"},\"harvestLog\":[],\"baseUrl\":\"www.amazon.com\",\"title\":null,\"inCirculation\":null,\"langPointers\":null,\"uploader\":null,\"show\":{\"epub\":{\"harvester\":true,\"librarian\":true,\"user\":true},\"pdf\":{\"harvester\":true,\"librarian\":false,\"user\":false},\"bloomReader\":{\"harvester\":true,\"librarian\":false},\"readOnline\":{\"harvester\":true,\"user\":true}},\"objectId\":null}";
-			Assert.AreEqual(expectedJson, bookJson);
+			string expectedJsonFragment = "\"show\":{\"epub\":{\"harvester\":true,\"librarian\":true,\"user\":true},\"pdf\":{\"harvester\":true,\"librarian\":false,\"user\":false},\"bloomReader\":{\"harvester\":true,\"librarian\":false},\"readOnline\":{\"harvester\":true,\"user\":true}}";
+			Assert.That(bookJson.Contains(expectedJsonFragment), Is.True);
 		}
 
 		[Test]
-		public void GetBloomLibraryBookDetailLink_Prod_PopulatesLink()
+		public void Book_GetBloomLibraryBookDetailLink_Prod_PopulatesLink()
 		{
 			var book = new Book();
 			book.ObjectId = "myObjectId";
@@ -75,7 +75,7 @@ namespace BloomHarvesterTests.Parse.Model
 		}
 
 		[Test]
-		public void GetBloomLibraryBookDetailLink_Dev_PopulatesLink()
+		public void Book_GetBloomLibraryBookDetailLink_Dev_PopulatesLink()
 		{
 			var book = new Book();
 			book.ObjectId = "myObjectId";
@@ -88,7 +88,7 @@ namespace BloomHarvesterTests.Parse.Model
 		[TestCase(null)]
 		[TestCase("")]
 		[TestCase(" ")]
-		public void GetBloomLibraryBookDetailLink_BadInput_ErrorReported(string badObjectId)
+		public void Book_GetBloomLibraryBookDetailLink_BadInput_ErrorReported(string badObjectId)
 		{
 			var book = new Book();
 			book.ObjectId = badObjectId;
@@ -96,6 +96,45 @@ namespace BloomHarvesterTests.Parse.Model
 			string url = book.GetDetailLink(EnvironmentSetting.Dev);
 
 			Assert.That(url, Is.Null);
+		}
+
+		[Test]
+		public void Book_UpdateMetadata_NotEqual_PendingUpdatesFound()
+		{
+			// Setup
+			var book = new Book();
+			book.Features = new string[] { "talkingBook" };
+			book.MarkAsDatabaseVersion();
+
+			var metaData = new Bloom.Book.BookMetaData();
+			metaData.Features = new string[] { "talkingBook", "talkingBook:en" };
+
+			// Test
+			book.UpdateMetadataIfNeeded(metaData);
+			UpdateOperation pendingUpdates = book.GetPendingUpdates();
+
+			// Verification
+			var updateDict = pendingUpdates._updatedFieldValues;
+			Assert.IsTrue(updateDict.Any(), "PendingUpdates.Any()");
+
+			var expectedResult = new Dictionary<string, string>();
+			expectedResult.Add("updateSource", "\"bloomHarvester\"");   // This key should be present so Parse knows it's not a BloomDesktop upload
+			expectedResult.Add("features", "[\"talkingBook\",\"talkingBook:en\"]");
+			CollectionAssert.AreEquivalent(updateDict, expectedResult);
+		}
+
+		[Test]
+		public void Book_GetNewBookUpdateOperation_AddsUpdateSource()
+		{
+			// System under test
+			var bookUpdateOp = Book.GetNewBookUpdateOperation();
+			var result = bookUpdateOp._updatedFieldValues;
+
+			// Verification
+			var expectedResult = new Dictionary<string, string>();
+			expectedResult.Add("updateSource", "\"bloomHarvester\"");
+
+			CollectionAssert.AreEquivalent(expectedResult, result);
 		}
 	}
 }

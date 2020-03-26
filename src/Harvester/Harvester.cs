@@ -446,7 +446,7 @@ namespace BloomHarvester
 						var analyzer = BookAnalyzer.FromFolder(downloadBookDir);
 						var collectionFilePath = analyzer.WriteBloomCollection(downloadBookDir);
 
-						isSuccessful &= CreateArtifacts(decodedUrl, downloadBookDir, collectionFilePath, book);
+						isSuccessful &= CreateArtifacts(decodedUrl, downloadBookDir, collectionFilePath, book, harvestLogEntries);
 						if (isSuccessful)
 							UpdateSuitabilityofArtifacts(book, analyzer);
 					}
@@ -895,8 +895,11 @@ namespace BloomHarvester
 			return fontFamilyDict;
 		}
 
-		private bool CreateArtifacts(string downloadUrl, string downloadBookDir, string collectionFilePath, Book book)
+		private bool CreateArtifacts(string downloadUrl, string downloadBookDir, string collectionFilePath, Book book, List<BaseLogEntry> harvestLogEntries)
 		{
+			Debug.Assert(book != null, "CreateArtifacts(): book expected to be non-null");
+			Debug.Assert(harvestLogEntries != null, "CreateArtifacts(): harvestLogEntries expected to be non-null");
+
 			bool success = true;
 
 			using (var folderForUnzipped = new TemporaryFolder("BloomHarvesterStagingUnzipped"))
@@ -948,6 +951,19 @@ namespace BloomHarvester
 					{
 						success = false;
 						errorDescription += $"Bloom Command Line error: CreateArtifacts terminated because it exceeded {kCreateArtifactsTimeoutSecs} seconds.";
+					}
+
+					if (success && !_options.SkipUploadBloomDigitalArtifacts)
+					{
+						string expectedIndexPath = Path.Combine(folderForUnzipped.FolderPath, "bloomdigital", "index.htm");
+						if (!SIL.IO.RobustFile.Exists(expectedIndexPath))
+						{
+							success = false;
+							errorDescription += $"BloomDigital folder missing index.htm file";
+
+							var logEntry = new MissingBloomDigitalIndexError();
+							harvestLogEntries.Add(logEntry);
+						}
 					}
 
 					string errorDetails = "";

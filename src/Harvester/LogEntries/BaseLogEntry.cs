@@ -44,8 +44,9 @@ namespace BloomHarvester.LogEntries
 
 		// Dummy instances of each of the derived types to call its TryParse method (which is semantically a static abstract, except that's not technically possible)
 		private static GetFontsError _getFontsError = new GetFontsError();
-		private static MissingFontError _missingFontError = new MissingFontError("");
 		private static MissingBaseUrlWarning _missingBaseUrlWarning = new MissingBaseUrlWarning();
+		private static MissingBloomDigitalIndexError _missingBloomDigitalIndexError = new MissingBloomDigitalIndexError();
+		private static MissingFontError _missingFontError = new MissingFontError("");
 
 		/// <summary>
 		/// Reads an entry from harvestLog field and attempts to parse it
@@ -70,11 +71,15 @@ namespace BloomHarvester.LogEntries
 			{
 				return value;
 			}
-			else if (_missingFontError.TryParse(message, out value))
+			else if (_missingBaseUrlWarning.TryParse(message, out value))
 			{
 				return value;
 			}
-			else if (_missingBaseUrlWarning.TryParse(message, out value))
+			else if (_missingBloomDigitalIndexError.TryParse(message, out value))
+			{
+				return value;
+			}
+			else if (_missingFontError.TryParse(message, out value))
 			{
 				return value;
 			}

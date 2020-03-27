@@ -944,7 +944,9 @@ namespace BloomHarvester
 						else
 						{
 							success = false;
-							errorDescription += $"Bloom Command Line error: CreateArtifacts failed with exit code: {bloomExitCode}.";
+							IEnumerable<string> errors = Bloom.CLI.CreateArtifactsCommand.GetErrorsFromExitCode(bloomExitCode) ?? Enumerable.Empty<string>();
+							string errorInfo = String.Join(", ", errors);
+							errorDescription += $"Bloom Command Line error: CreateArtifacts failed with exit code: {bloomExitCode} ({errorInfo}).";
 						}
 					}
 					else
@@ -960,9 +962,7 @@ namespace BloomHarvester
 						{
 							success = false;
 							errorDescription += $"BloomDigital folder missing index.htm file";
-
-							var logEntry = new MissingBloomDigitalIndexError();
-							harvestLogEntries.Add(logEntry);
+							harvestLogEntries.Add(new MissingBloomDigitalIndexError());
 						}
 					}
 

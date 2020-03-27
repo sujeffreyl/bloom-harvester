@@ -957,7 +957,7 @@ namespace BloomHarvester
 
 					if (success && !_options.SkipUploadBloomDigitalArtifacts)
 					{
-						string expectedIndexPath = Path.Combine(folderForUnzipped.FolderPath, "bloomdigital", "index.htm");
+						string expectedIndexPath = Path.Combine(folderForUnzipped.FolderPath, "index.htm");
 						if (!SIL.IO.RobustFile.Exists(expectedIndexPath))
 						{
 							success = false;

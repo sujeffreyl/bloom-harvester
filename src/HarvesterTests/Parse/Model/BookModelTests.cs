@@ -6,17 +6,18 @@ using BloomHarvester.Parse;
 using BloomHarvester.Parse.Model;
 using Newtonsoft.Json;
 using NUnit.Framework;
+using VSUnitTesting = Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace BloomHarvesterTests.Parse.Model
 {
 	[TestFixture]
-	public class BookTests
+	public class BookModelTests
 	{
 		[Test]
-		public void Book_SetHarvesterEvaluation_InsertsProperly()
+		public void BookModel_SetHarvesterEvaluation_InsertsProperly()
 		{
 			// Setup
-			var book = new Book()
+			var book = new BookModel()
 			{
 				HarvestState = "Done",
 				HarvestStartedAt = new ParseDate(new DateTime(2019, 9, 11, 0, 0, 0, DateTimeKind.Utc)),
@@ -38,10 +39,10 @@ namespace BloomHarvesterTests.Parse.Model
 		}
 
 		[Test]
-		public void Book_SetHarvesterEvaluation_UpdatesProperly()
+		public void BookModel_SetHarvesterEvaluation_UpdatesProperly()
 		{
 			// Setup
-			var book = new Book()
+			var book = new BookModel()
 			{
 				HarvestState = "Done",
 				HarvestStartedAt = new ParseDate(new DateTime(2019, 9, 11, 0, 0, 0, DateTimeKind.Utc)),
@@ -64,9 +65,9 @@ namespace BloomHarvesterTests.Parse.Model
 		}
 
 		[Test]
-		public void Book_GetBloomLibraryBookDetailLink_Prod_PopulatesLink()
+		public void BookModel_GetBloomLibraryBookDetailLink_Prod_PopulatesLink()
 		{
-			var book = new Book();
+			var book = new BookModel();
 			book.ObjectId = "myObjectId";
 
 			string url = book.GetDetailLink(EnvironmentSetting.Prod);
@@ -75,9 +76,9 @@ namespace BloomHarvesterTests.Parse.Model
 		}
 
 		[Test]
-		public void Book_GetBloomLibraryBookDetailLink_Dev_PopulatesLink()
+		public void BookModel_GetBloomLibraryBookDetailLink_Dev_PopulatesLink()
 		{
-			var book = new Book();
+			var book = new BookModel();
 			book.ObjectId = "myObjectId";
 
 			string url = book.GetDetailLink(EnvironmentSetting.Dev);
@@ -88,9 +89,9 @@ namespace BloomHarvesterTests.Parse.Model
 		[TestCase(null)]
 		[TestCase("")]
 		[TestCase(" ")]
-		public void Book_GetBloomLibraryBookDetailLink_BadInput_ErrorReported(string badObjectId)
+		public void BookModel_GetBloomLibraryBookDetailLink_BadInput_ErrorReported(string badObjectId)
 		{
-			var book = new Book();
+			var book = new BookModel();
 			book.ObjectId = badObjectId;
 
 			string url = book.GetDetailLink(EnvironmentSetting.Dev);
@@ -99,10 +100,10 @@ namespace BloomHarvesterTests.Parse.Model
 		}
 
 		[Test]
-		public void Book_UpdateMetadata_NotEqual_PendingUpdatesFound()
+		public void BookModel_UpdateMetadata_NotEqual_PendingUpdatesFound()
 		{
 			// Setup
-			var book = new Book();
+			var book = new BookModel();
 			book.Features = new string[] { "talkingBook" };
 			book.MarkAsDatabaseVersion();
 
@@ -124,10 +125,10 @@ namespace BloomHarvesterTests.Parse.Model
 		}
 
 		[Test]
-		public void Book_GetNewBookUpdateOperation_AddsUpdateSource()
+		public void BookModel_GetNewBookUpdateOperation_AddsUpdateSource()
 		{
 			// System under test
-			var bookUpdateOp = Book.GetNewBookUpdateOperation();
+			var bookUpdateOp = BookModel.GetNewBookUpdateOperation();
 			var result = bookUpdateOp._updatedFieldValues;
 
 			// Verification

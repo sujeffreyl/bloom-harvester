@@ -17,17 +17,17 @@ namespace BloomHarvesterTests
 		private const bool SKIP = false;
 
 		// Helper methods
-		private static bool RunShouldProcessBook(Book book, string currentVersionStr, HarvestMode mode = HarvestMode.Default)
+		private static bool RunShouldProcessBook(BookModel book, string currentVersionStr, HarvestMode mode = HarvestMode.Default)
 		{
 			return Harvester.ShouldProcessBook(book, mode, new Version(currentVersionStr), out _);
 		}
 
-		private Book SetupDefaultBook(HarvestState bookState, string previousVersionStr)
+		private BookModel SetupDefaultBook(HarvestState bookState, string previousVersionStr)
 		{
 			Version previousVersion = new Version(previousVersionStr);
 
 			// Create a default book if the caller didn't have a specific book it wanted to test.
-			Book book = new Book()
+			BookModel book = new BookModel()
 			{
 				HarvestState = bookState.ToString(),
 				HarvesterMajorVersion = previousVersion.Major,
@@ -50,7 +50,7 @@ namespace BloomHarvesterTests
 		[TestCase("1.1", "2.0", SKIP)]  // current is older by a major version
 		public void ShouldProcessBook_DefaultMode_DoneState_SkipsUnlessNewerMajorVersion(string currentVersionStr, string previousVersionStr, bool expectedResult)
 		{
-			Book book = SetupDefaultBook(HarvestState.Done, previousVersionStr);
+			BookModel book = SetupDefaultBook(HarvestState.Done, previousVersionStr);
 			bool result = RunShouldProcessBook(book, currentVersionStr);
 			Assert.AreEqual(expectedResult, result);
 		}
@@ -64,7 +64,7 @@ namespace BloomHarvesterTests
 		[TestCase("1.1", "2.0", SKIP)]    // current is older by a major version		
 		public void ShouldProcessBook_DefaultMode_FailedState_SkipsUnlessNewerMajorOrMinorVersion(string currentVersionStr, string previousVersionStr, bool expectedResult)
 		{
-			Book book = SetupDefaultBook(HarvestState.Failed, previousVersionStr);
+			BookModel book = SetupDefaultBook(HarvestState.Failed, previousVersionStr);
 			bool result = RunShouldProcessBook(book, currentVersionStr);
 			Assert.AreEqual(expectedResult, result);
 		}
@@ -80,7 +80,7 @@ namespace BloomHarvesterTests
 			DateTime oneMinuteAgo = DateTime.UtcNow.AddMinutes(-1);
 			Version previousVersion = new Version(previousVersionStr);
 
-			var book = new Book()
+			var book = new BookModel()
 			{
 				HarvestState = HarvestState.InProgress.ToString(),
 				HarvestStartedAt = new BloomHarvester.Parse.Model.ParseDate(oneMinuteAgo),
@@ -109,7 +109,7 @@ namespace BloomHarvesterTests
 			DateTime threeDaysAgo = DateTime.UtcNow.AddDays(-3);
 			Version previousVersion = new Version(previousVersionStr);
 
-			var book = new Book()
+			var book = new BookModel()
 			{
 				HarvestState = HarvestState.InProgress.ToString(),
 				HarvestStartedAt = new BloomHarvester.Parse.Model.ParseDate(threeDaysAgo),
@@ -155,7 +155,7 @@ namespace BloomHarvesterTests
 
 			// Even though it might look like we should skip processing because we still don't have this non-existent font,
 			// this test covers the case where the new/updated state of the book causes us to want to reprocess it anyway.
-			Book book = new Book()
+			BookModel book = new BookModel()
 			{
 				HarvestState = state,
 				HarvesterMajorVersion = 2,
@@ -180,7 +180,7 @@ namespace BloomHarvesterTests
 		[Test]
 		public void ShouldProcessBook_MissingFont_Skipped()
 		{
-			Book book = new Book()
+			BookModel book = new BookModel()
 			{
 				HarvestState = "Failed",
 				HarvesterMajorVersion = 1,
@@ -199,7 +199,7 @@ namespace BloomHarvesterTests
 		[Test]
 		public void ShouldProcessBook_AllMissingFontsNowFound_Processed()
 		{
-			Book book = new Book()
+			BookModel book = new BookModel()
 			{
 				HarvestState = "Failed",
 				HarvesterMajorVersion = 1,
@@ -218,7 +218,7 @@ namespace BloomHarvesterTests
 		[Test]
 		public void ShouldProcessBook_OnlySomeMissingFontsNowFound_Skipped()
 		{
-			Book book = new Book()
+			BookModel book = new BookModel()
 			{
 				HarvestState = "Failed",
 				HarvesterMajorVersion = 1,

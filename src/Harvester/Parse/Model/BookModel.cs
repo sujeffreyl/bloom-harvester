@@ -8,7 +8,7 @@ using System.Reflection;
 namespace BloomHarvester.Parse.Model
 {
 	[JsonObject(MemberSerialization = MemberSerialization.OptIn)]
-	public class Book : WriteableParseObject
+	public class BookModel : WriteableParseObject
 	{
 		public const string kHarvestStateField = "harvestState";
 		public const string kShowField = "show";
@@ -119,7 +119,7 @@ namespace BloomHarvester.Parse.Model
 			// so easier for us to do this by serializing/deserializing JSON instead
 			// Also makes sure we clone arrays properly (although there are other ways we could get this too)
 			string jsonOfThis = JsonConvert.SerializeObject(this);
-			var newBook = JsonConvert.DeserializeObject<Book>(jsonOfThis);
+			var newBook = JsonConvert.DeserializeObject<BookModel>(jsonOfThis);
 			return newBook;
 		}
 

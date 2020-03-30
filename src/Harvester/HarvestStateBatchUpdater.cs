@@ -38,7 +38,7 @@ namespace BloomHarvester
 		/// </summary>
 		private void BatchUpdateStates()
 		{
-			IEnumerable<Book> bookList = _parseClient.GetBooks(out bool didExitPrematurely, _options.QueryWhere);
+			IEnumerable<BookModel> bookList = _parseClient.GetBooks(out bool didExitPrematurely, _options.QueryWhere);
 
 			if (didExitPrematurely)
 			{

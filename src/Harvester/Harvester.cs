@@ -217,37 +217,38 @@ namespace BloomHarvester
 					var skippedBooks = new List<BookModel>();
 					var failedBooks = new List<BookModel>();	// Only the list from the current iteration, not the total cumulative list
 
-					foreach (var book in bookList)
+					foreach (var bookModel in bookList)
 					{
 						// Decide if we should process it.
-						bool shouldBeProcessed = ShouldProcessBook(book, out string reason);
+						bool shouldBeProcessed = ShouldProcessBook(bookModel, out string reason);
 						if (shouldBeProcessed || kEnableLoggingSkippedBooks)
 						{
-							_logger.LogInfo($"{book.ObjectId} - {reason}");
+							_logger.LogInfo($"{bookModel.ObjectId} - {reason}");
 						}
 
 						if (!shouldBeProcessed)
 						{
-							skippedBooks.Add(book);
+							skippedBooks.Add(bookModel);
 
-							if (book.HarvestState == Parse.Model.HarvestState.Done.ToString())
+							if (bookModel.HarvestState == Parse.Model.HarvestState.Done.ToString())
 							{
 								// Something else has marked this book as no longer failed
-								_cumulativeFailedBookIdSet.Remove(book.ObjectId);
+								_cumulativeFailedBookIdSet.Remove(bookModel.ObjectId);
 							}
 
 							continue;
 						}
 
+						var book = new Book(bookModel, _logger);
 						bool isSuccessful = ProcessOneBook(book);
 						if (isSuccessful)
 						{
 							// We know this book is no longer failed
-							_cumulativeFailedBookIdSet.Remove(book.ObjectId);
+							_cumulativeFailedBookIdSet.Remove(bookModel.ObjectId);
 						}
 						else
 						{
-							failedBooks.Add(book);
+							failedBooks.Add(bookModel);
 						}
 						++numBooksProcessed;
 
@@ -389,41 +390,41 @@ namespace BloomHarvester
 			return jsonString;
 		}
 				
-		private bool ProcessOneBook(BookModel book)
+		private bool ProcessOneBook(Book book)
 		{
 			bool isSuccessful = true;
 			try
 			{
-				string message = $"Processing: {book.BaseUrl}";
+				string message = $"Processing: {book.Model.BaseUrl}";
 				_logger.LogVerbose(message);
 
 				_logger.TrackEvent("ProcessOneBook Start"); // After we check ShouldProcessBook
 
 				// Parse DB initial updates
-				book.HarvestState = Parse.Model.HarvestState.InProgress.ToString();
-				book.HarvesterId = this.Identifier;
-				book.HarvesterMajorVersion = Version.Major;
-				book.HarvesterMinorVersion = Version.Minor;
-				book.HarvestStartedAt = new Parse.Model.ParseDate(DateTime.UtcNow);
+				book.Model.HarvestState = Parse.Model.HarvestState.InProgress.ToString();
+				book.Model.HarvesterId = this.Identifier;
+				book.Model.HarvesterMajorVersion = Version.Major;
+				book.Model.HarvesterMinorVersion = Version.Minor;
+				book.Model.HarvestStartedAt = new Parse.Model.ParseDate(DateTime.UtcNow);
 
 				if (!_options.ReadOnly)
 				{
-					_currentBookId = book.ObjectId;					
+					_currentBookId = book.Model.ObjectId;					
 				}
-				book.FlushUpdateToDatabase(_parseClient, _options.ReadOnly);
+				book.Model.FlushUpdateToDatabase(_parseClient, _options.ReadOnly);
 
 				// Download the book
 				_logger.TrackEvent("Download Book");
-				string decodedUrl = HttpUtility.UrlDecode(book.BaseUrl);
+				string decodedUrl = HttpUtility.UrlDecode(book.Model.BaseUrl);
 				string urlWithoutTitle = RemoveBookTitleFromBaseUrl(decodedUrl);
 				string downloadRootDir = Path.Combine(Path.GetTempPath(), Path.Combine("BloomHarvester", this.Identifier));
 				_logger.LogVerbose("Download Dir: {0}", downloadRootDir);
 				Bloom.Program.RunningHarvesterMode = true;  // HandleDownloadWithoutProgress has a nested subcall to BloomS3Client.cs::AvoidThisFile() which looks at HarvesterMode
 
 				string downloadBookDir;
-				if (_options.SkipDownload && Directory.Exists(Path.Combine(downloadRootDir, book.Title)))
+				if (_options.SkipDownload && Directory.Exists(Path.Combine(downloadRootDir, book.Model.Title)))
 				{
-					downloadBookDir = Path.Combine(downloadRootDir, book.Title);
+					downloadBookDir = Path.Combine(downloadRootDir, book.Model.Title);
 				}
 				else
 				{
@@ -438,7 +439,7 @@ namespace BloomHarvester
 				// More processing
 				if (isSuccessful)
 				{
-					var warnings = FindBookWarnings(book);
+					var warnings = book.FindBookWarnings();
 					harvestLogEntries.AddRange(warnings);
 
 					if (!_options.ReadOnly)
@@ -453,19 +454,19 @@ namespace BloomHarvester
 				}
 
 				// Finalize the state
-				book.HarvestLogEntries = harvestLogEntries.Select(x => x.ToString()).ToList();
+				book.Model.HarvestLogEntries = harvestLogEntries.Select(x => x.ToString()).ToList();
 				if (isSuccessful)
 				{
-					book.HarvestState = Parse.Model.HarvestState.Done.ToString();
+					book.Model.HarvestState = Parse.Model.HarvestState.Done.ToString();
 				}
 				else
 				{
-					book.HarvestState = Parse.Model.HarvestState.Failed.ToString();
+					book.Model.HarvestState = Parse.Model.HarvestState.Failed.ToString();
 				}
 
 				// Write the updates
 				_currentBookId = null;
-				book.FlushUpdateToDatabase(_parseClient, _options.ReadOnly);
+				book.Model.FlushUpdateToDatabase(_parseClient, _options.ReadOnly);
 
 				if (!_options.SkipDownload)
 				{
@@ -480,18 +481,18 @@ namespace BloomHarvester
 			catch (Exception e)
 			{
 				isSuccessful = false;
-				string bookId = book?.ObjectId ?? "null";
-				string bookUrl = book?.BaseUrl ?? "null";
+				string bookId = book.Model?.ObjectId ?? "null";
+				string bookUrl = book.Model?.BaseUrl ?? "null";
 				YouTrackIssueConnector.ReportExceptionToYouTrack(e, $"Unhandled exception \"{e.Message}\" thrown.", book, _parseDBEnvironment, exitImmediately: false);
 
 				// Attempt to write to Parse that processing failed
-				if (!String.IsNullOrEmpty(book?.ObjectId))
+				if (!String.IsNullOrEmpty(book.Model?.ObjectId))
 				{
 					try
 					{
-						book.HarvestState = Parse.Model.HarvestState.Failed.ToString();
-						book.HarvesterId = this.Identifier;
-						book.FlushUpdateToDatabase(_parseClient);
+						book.Model.HarvestState = Parse.Model.HarvestState.Failed.ToString();
+						book.Model.HarvesterId = this.Identifier;
+						book.Model.FlushUpdateToDatabase(_parseClient);
 					}
 					catch (Exception)
 					{
@@ -503,7 +504,7 @@ namespace BloomHarvester
 			return isSuccessful;
 		}
 
-		private void UpdateSuitabilityofArtifacts(BookModel book, BookAnalyzer analyzer)
+		private void UpdateSuitabilityofArtifacts(Book book, BookAnalyzer analyzer)
 		{
 			if (!_options.SkipUploadEPub)
 			{
@@ -750,35 +751,10 @@ namespace BloomHarvester
 			return urlWithoutTitle;
 		}
 
-		/// <summary>
-		/// Determines whether any warnings regarding a book should be displayed to the user on Bloom Library
-		/// </summary>
-		/// <param name="book">The book to check</param>
-		/// <returns></returns>
-		private List<BaseLogEntry> FindBookWarnings(BookModel book)
-		{
-			var warnings = new List<BaseLogEntry>();
-
-			if (book == null)
-			{
-				return warnings;
-			}
-
-			if (String.IsNullOrWhiteSpace(book.BaseUrl))
-			{
-				warnings.Add(new MissingBaseUrlWarning());
-			}
-
-			if (warnings.Any())
-			{
-				_logger.LogWarn("Warnings: " + String.Join(";", warnings.Select(x => x.ToString())));
-			}
-
-			return warnings;
-		}
+		
 
 		// Returns true if at least one font is missing
-		private List<BaseLogEntry> CheckForMissingFontErrors(string bookPath, BookModel book)
+		private List<BaseLogEntry> CheckForMissingFontErrors(string bookPath, Book book)
 		{
 			var harvestLogEntries = new List<BaseLogEntry>();
 
@@ -869,7 +845,7 @@ namespace BloomHarvester
 		/// </summary>
 		/// <param name="filePath">The path to the report file generated from Bloom's "getfonts" CLI command. Each line of the file should correspond to 1 font name.</param>
 		/// <returns>A list of strings, one for each font referenced by the book.</returns>
-		private List<string> GetFontsFromReportFile(string filePath)
+		private static List<string> GetFontsFromReportFile(string filePath)
 		{
 			var referencedFonts = new List<string>();
 
@@ -895,7 +871,7 @@ namespace BloomHarvester
 			return fontFamilyDict;
 		}
 
-		private bool CreateArtifacts(string downloadUrl, string downloadBookDir, string collectionFilePath, BookModel book, List<BaseLogEntry> harvestLogEntries)
+		private bool CreateArtifacts(string downloadUrl, string downloadBookDir, string collectionFilePath, Book book, List<BaseLogEntry> harvestLogEntries)
 		{
 			Debug.Assert(book != null, "CreateArtifacts(): book expected to be non-null");
 			Debug.Assert(harvestLogEntries != null, "CreateArtifacts(): harvestLogEntries expected to be non-null");

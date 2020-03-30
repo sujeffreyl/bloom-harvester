@@ -74,7 +74,7 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 			return youTrackIssueId;
 		}
 
-		internal static void ReportExceptionToYouTrack(Exception exception, string additionalDescription, Parse.Model.BookModel book, EnvironmentSetting environment, bool exitImmediately = true)
+		internal static void ReportExceptionToYouTrack(Exception exception, string additionalDescription, Book book, EnvironmentSetting environment, bool exitImmediately = true)
 		{
 			string summary = $"[BH] [{environment}] Exception \"{exception.Message}\"";
 			string description =
@@ -123,7 +123,7 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 			return bldr.ToString();
 		}
 
-		public static void ReportErrorToYouTrack(string errorSummary, string errorDescription, string errorDetails, EnvironmentSetting environment, Parse.Model.BookModel book = null)
+		public static void ReportErrorToYouTrack(string errorSummary, string errorDescription, string errorDetails, EnvironmentSetting environment, Book book = null)
 		{
 			string summary = $"[BH] [{environment}] Error: {errorSummary}";
 
@@ -136,7 +136,7 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 			ReportToYouTrack(_youTrackProjectKeyErrors, summary, description, exitImmediately: false);
 		}
 
-		public static void ReportMissingFontToYouTrack(string missingFontName, string harvesterId, EnvironmentSetting environment, Parse.Model.BookModel book = null)
+		public static void ReportMissingFontToYouTrack(string missingFontName, string harvesterId, EnvironmentSetting environment, Book book = null)
 		{
 			string summary = $"[BH] [{environment}] Missing Font: \"{missingFontName}\"";
 
@@ -146,7 +146,7 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 			ReportToYouTrack(_youTrackProjectKeyMissingFonts, summary, description, exitImmediately: false);
 		}
 
-		private static string GetDiagnosticInfo(Parse.Model.BookModel book, EnvironmentSetting environment)
+		private static string GetDiagnosticInfo(Book book, EnvironmentSetting environment)
 		{
 			var assemblyVersion = System.Reflection.Assembly.GetEntryAssembly()?.GetName()?.Version ?? new Version(0, 0);
 

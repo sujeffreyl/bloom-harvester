@@ -46,9 +46,9 @@ namespace BloomHarvester
 				return;
 			}
 
-			foreach (var book in bookList)
+			foreach (var bookModel in bookList)
 			{
-				_logger.LogInfo($"Updating objectId {book.ObjectId} from {book.HarvestState} to {NewState}");
+				_logger.LogInfo($"Updating objectId {bookModel.ObjectId} from {bookModel.HarvestState} to {NewState}");
 				
 				string newStateStr = "";
 				if (NewState != HarvestState.Unknown)
@@ -58,8 +58,8 @@ namespace BloomHarvester
 
 				if (!IsDryRun)
 				{
-					book.HarvestState = newStateStr;
-					book.FlushUpdateToDatabase(_parseClient);
+					bookModel.HarvestState = newStateStr;
+					bookModel.FlushUpdateToDatabase(_parseClient);
 				}
 			}
 

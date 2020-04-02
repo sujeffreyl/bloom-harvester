@@ -18,12 +18,12 @@ namespace BloomHarvester
 		/// </summary>
 		internal static void UpdateState(EnvironmentSetting parseDbEnvironment, string objectId, Parse.Model.HarvestState newState)
 		{
-			var updateOp = Book.GetNewBookUpdateOperation();
-			updateOp.UpdateFieldWithString(Book.kHarvestStateField, newState.ToString());
+			var updateOp = BookModel.GetNewBookUpdateOperation();
+			updateOp.UpdateFieldWithString(BookModel.kHarvestStateField, newState.ToString());
 
 			EnvironmentSetting environment = EnvironmentUtils.GetEnvOrFallback(parseDbEnvironment, EnvironmentSetting.Default);
 			var parseClient = new ParseClient(environment);
-			parseClient.UpdateObject(Book.GetStaticParseClassName(), objectId, updateOp.ToJson());
+			parseClient.UpdateObject(BookModel.GetStaticParseClassName(), objectId, updateOp.ToJson());
 			parseClient.FlushBatchableOperations();
 
 			Console.Out.WriteLine($"Environment={parseDbEnvironment}: Sent request to update object \"{objectId}\" with harvestState={newState}");

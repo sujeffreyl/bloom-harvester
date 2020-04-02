@@ -84,7 +84,7 @@ namespace BloomHarvesterTests.Parse.Model
 		[Test]
 		public void WriteableParseObject_GetPendingUpdates_ArrayModified_ItemAdded()
 		{
-			var book = new Book();
+			var book = new BookModel();
 			book.Features = new string[] { "talkingBook" };
 			book.MarkAsDatabaseVersion();
 
@@ -97,7 +97,7 @@ namespace BloomHarvesterTests.Parse.Model
 		[Test]
 		public void WriteableParseObject_GetPendingUpdates_ArrayNotModified_NothingAdded()
 		{
-			var book = new Book();
+			var book = new BookModel();
 			book.Features = new string[] { "talkingBook" };
 			book.MarkAsDatabaseVersion();
 
@@ -109,7 +109,7 @@ namespace BloomHarvesterTests.Parse.Model
 		[Test]
 		public void WriteableParseObject_GetPendingUpdates_ListModified_ItemAdded()
 		{
-			var book = new Book();
+			var book = new BookModel();
 			book.HarvestLogEntries = new List<string>(new string[] { "message1" });
 			book.MarkAsDatabaseVersion();
 
@@ -122,7 +122,7 @@ namespace BloomHarvesterTests.Parse.Model
 		[Test]
 		public void WriteableParseObject_GetPendingUpdates_ListNotModified_NothingAdded()
 		{
-			var book = new Book();
+			var book = new BookModel();
 			book.HarvestLogEntries = new List<string>(new string[] { "message1" });
 			book.MarkAsDatabaseVersion();
 
@@ -137,7 +137,7 @@ namespace BloomHarvesterTests.Parse.Model
 		[Test]
 		public void WriteableParseObject_GetPendingUpdates_NonNullDate_NothingAdded()
 		{
-			var book = new Book();
+			var book = new BookModel();
 			book.HarvestStartedAt = new ParseDate(new DateTime(2020, 03, 04));
 
 			book.MarkAsDatabaseVersion();
@@ -152,7 +152,7 @@ namespace BloomHarvesterTests.Parse.Model
 		[Test]
 		public void WriteableParseObject_GetPendingUpdates_DateModified_ItemAdded()
 		{
-			var book = new Book();
+			var book = new BookModel();
 			book.HarvestStartedAt = new ParseDate(new DateTime(2020, 03, 04));
 
 			book.MarkAsDatabaseVersion();
@@ -172,7 +172,7 @@ namespace BloomHarvesterTests.Parse.Model
 		[Test]
 		public void WriteableParseObject_GetPendingUpdates_DynamicModified_ItemAdded()
 		{
-			var book = new Book();
+			var book = new BookModel();
 			book.Show = JsonConvert.DeserializeObject("{ \"pdf\": { \"harvester\": true} }");
 			book.MarkAsDatabaseVersion();
 
@@ -185,7 +185,7 @@ namespace BloomHarvesterTests.Parse.Model
 		[Test]
 		public void WriteableParseObject_GetPendingUpdates_DynamicNotModified_NothingAdded()
 		{
-			var book = new Book();
+			var book = new BookModel();
 			book.Show = JsonConvert.DeserializeObject("{ \"pdf\": { \"harvester\": true} }");
 			book.MarkAsDatabaseVersion();
 

@@ -7,8 +7,15 @@ using System.Reflection;
 
 namespace BloomHarvester.Parse.Model
 {
+	/// <summary>
+	/// This class represents a Book row in the Parse database
+	/// as well as functions that deal with the interaction with Parse
+	///
+	/// However, most of the logic for processing a book and updating its value
+	/// should go in Harvester.Book class instead, which will wrap this class.
+	/// </summary>
 	[JsonObject(MemberSerialization = MemberSerialization.OptIn)]
-	public class Book : WriteableParseObject
+	public class BookModel : WriteableParseObject
 	{
 		public const string kHarvestStateField = "harvestState";
 		public const string kShowField = "show";
@@ -24,6 +31,7 @@ namespace BloomHarvester.Parse.Model
 				"HarvestStartedAt",
 				"HarvestLogEntries",
 				"Features",
+				"Tags",
 				"Show"
 			});
 		}
@@ -83,6 +91,9 @@ namespace BloomHarvester.Parse.Model
 		[JsonProperty("features")]
 		public string[] Features { get; set; }
 
+		[JsonProperty("tags")]
+		public string[] Tags { get; set; }
+
 		/// <summary>
 		/// A json object used to limit what the Library shows the user for each book.
 		/// For example:
@@ -119,7 +130,7 @@ namespace BloomHarvester.Parse.Model
 			// so easier for us to do this by serializing/deserializing JSON instead
 			// Also makes sure we clone arrays properly (although there are other ways we could get this too)
 			string jsonOfThis = JsonConvert.SerializeObject(this);
-			var newBook = JsonConvert.DeserializeObject<Book>(jsonOfThis);
+			var newBook = JsonConvert.DeserializeObject<BookModel>(jsonOfThis);
 			return newBook;
 		}
 
@@ -134,107 +145,8 @@ namespace BloomHarvester.Parse.Model
 			return "books";
 		}
 
-		/// <summary>
-		/// Set the harvester evaluation for the given artifact.
-		/// Call this method only if harvester created and uploaded the given artifact.
-		/// </summary>
-	    internal void SetHarvesterEvaluation(string artifact, bool enabled)
-	    {
-			if (Show == null)
-			{
-				var jsonString = $"{{ \"{artifact}\": {{ \"harvester\": {enabled.ToString().ToLowerInvariant()} }} }}";
-				Show = JsonConvert.DeserializeObject(jsonString);
-				return;
-			}
-		    var setting = JsonConvert.DeserializeObject($"{{ \"harvester\": {enabled.ToString().ToLowerInvariant()} }}");
-			switch (artifact)
-			{
-				case "epub":
-					if (Show.epub == null)
-						Show.epub = setting;
-					else
-						Show.epub.harvester = enabled;
-					break;
-				case "pdf":
-					if (Show.pdf == null)
-						Show.pdf = setting;
-					else
-						Show.pdf.harvester = enabled;
-					break;
-				case "bloomReader":
-					if (Show.bloomReader == null)
-						Show.bloomReader = setting;
-					else
-						Show.bloomReader.harvester = enabled;
-					break;
-				case "readOnline":
-					if (Show.readOnline == null)
-						Show.readOnline = setting;
-					else
-						Show.readOnline.harvester = enabled;
-					break;
-			}
-		}
-
-		// Prints out some diagnostic info about the book (for debugging a failed book)
-		// environment should be the environment of the BOOK not the Harvester. (i.e., it should probably be _parseDbEnvironment)
-		internal string GetBookDiagnosticInfo(EnvironmentSetting environment)
-		{
-			string diagnosticInfo =
-				$"BookId: {this.ObjectId}\n" +
-				$"URL: {this.GetDetailLink(environment) ?? "No URL"}\n" +
-				$"Title: {this.Title}";
-
-			return diagnosticInfo;
-		}
-
-		// Returns the link to the book detail page on Bloom Library
-		// If the book's ObjectId is null/etc, this method returns null as well.
-		public string GetDetailLink(EnvironmentSetting environment)
-		{
-			if (String.IsNullOrWhiteSpace(this.ObjectId))
-			{
-				return null;
-			}
-
-			string subdomain;
-			switch (environment)
-			{
-				case EnvironmentSetting.Prod:
-					subdomain = "";
-					break;
-				case EnvironmentSetting.Dev:
-				default:
-					subdomain = environment.ToString().ToLowerInvariant() + '.';
-					break;
-			}
-			string anchorReference = $"https://{subdomain}bloomlibrary.org/browse/detail/{this.ObjectId}";
-			return anchorReference;
-		}
-
-		/// <summary>
-		/// Modifies the book with newer metadata
-		/// </summary>
-		/// <param name="bookFolderPath">The path to find the up-to-date version of the book (which contains the up-to-date meta.json)</param>
-		internal void UpdateMetadataIfNeeded(string bookFolderPath)
-		{
-			var metaData = Bloom.Book.BookMetaData.FromFolder(bookFolderPath);
-			UpdateMetadataIfNeeded(metaData);
-		}
-
-		/// <summary>
-		/// Modifies the book with newer metadata
-		/// </summary>
-		/// <param name="metaData">The new metadata to update with</param>
-		internal void UpdateMetadataIfNeeded(Bloom.Book.BookMetaData metaData)
-		{
-			if ((this.Features == null && metaData.Features != null)
-				|| !this.Features.SequenceEqual(metaData.Features))
-			{
-				this.Features = metaData.Features;
-			}
-		}
-
+		#region Batch Parse Update code
+		// (This region of code is not in normal use as of 3-30-2020)
 		internal static UpdateOperation GetNewBookUpdateOperation()
 		{
 			var updateOp = new UpdateOperation();
@@ -254,5 +166,6 @@ namespace BloomHarvester.Parse.Model
 			}
 			return pendingUpdates;
 		}
+		#endregion
 	}
 }

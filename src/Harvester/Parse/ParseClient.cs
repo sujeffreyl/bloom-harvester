@@ -343,11 +343,11 @@ namespace BloomHarvester.Parse
 		/// <summary>
 		/// Gets all rows from the Parse "books" class/table
 		/// </summary>
-		internal List<Book> GetBooks(out bool didExitPrematurely, string whereCondition = "", IEnumerable<string> fieldsToDereference = null)
+		internal List<BookModel> GetBooks(out bool didExitPrematurely, string whereCondition = "", IEnumerable<string> fieldsToDereference = null)
 		{
 			var request = new RestRequest("classes/books", Method.GET);
 			SetCommonHeaders(request);
-			request.AddParameter("keys", "object_id,baseUrl,harvestState,harvesterMajorVersion,harvesterMinorVersion,harvestLog,harvestStartedAt,show,title,inCirculation,langPointers,uploader,features");
+			request.AddParameter("keys", "object_id,baseUrl,harvestState,harvesterMajorVersion,harvesterMinorVersion,harvestLog,harvestStartedAt,show,title,inCirculation,langPointers,uploader,features,tags");
 
 			if (!String.IsNullOrEmpty(whereCondition))
 			{
@@ -363,7 +363,7 @@ namespace BloomHarvester.Parse
 				}
 			}
 
-			List<Book> results = GetAllResults<Book>(request, out didExitPrematurely);
+			List<BookModel> results = GetAllResults<BookModel>(request, out didExitPrematurely);
 			results.ForEach(book => book.MarkAsDatabaseVersion());
 
 			return results;

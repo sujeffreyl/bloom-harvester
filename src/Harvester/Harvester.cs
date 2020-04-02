@@ -10,10 +10,8 @@ using Bloom.WebLibraryIntegration;
 using BloomHarvester.LogEntries;
 using BloomHarvester.Logger;
 using BloomHarvester.Parse;
-using BloomHarvester.Parse.Model;
 using BloomHarvester.WebLibraryIntegration;
 using BloomTemp;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Book = BloomHarvester.Parse.Model.Book;
 
@@ -431,7 +429,7 @@ namespace BloomHarvester
 				}
 
 				// Process the book
-				List<BaseLogEntry> harvestLogEntries = CheckForMissingFontErrors(downloadBookDir, book);
+				List<LogEntry> harvestLogEntries = CheckForMissingFontErrors(downloadBookDir, book);
 				bool anyFontsMissing = harvestLogEntries.Any();
 				isSuccessful &= !anyFontsMissing;
 
@@ -447,6 +445,7 @@ namespace BloomHarvester
 						var collectionFilePath = analyzer.WriteBloomCollection(downloadBookDir);
 
 						isSuccessful &= CreateArtifacts(decodedUrl, downloadBookDir, collectionFilePath, book, harvestLogEntries);
+						// TODO: if not successful, I guess you can update artifact suitability to say all false/empty. It makes things less confusing to Bloom Library admins than saying true.
 						if (isSuccessful)
 							UpdateSuitabilityofArtifacts(book, analyzer);
 					}
@@ -491,6 +490,11 @@ namespace BloomHarvester
 					{
 						book.HarvestState = Parse.Model.HarvestState.Failed.ToString();
 						book.HarvesterId = this.Identifier;
+						if (book.HarvestLogEntries == null)
+						{
+							book.HarvestLogEntries = new List<string>();
+						}
+						// TODO: Add some info to Harvester log
 						book.FlushUpdateToDatabase(_parseClient);
 					}
 					catch (Exception)
@@ -673,24 +677,19 @@ namespace BloomHarvester
 					case Parse.Model.HarvestState.Failed:
 						if (currentVersion > previouslyUsedVersion)
 						{
-							// ENHANCE: Should we bother checking if the font is still missing?
-
 							// Current is at least a minor version newer than what we had before
 							// Default to true (re-try failures), unless we have reason to think that it's still pretty hopeless for the book to succeed.
-							var logEntryList = GetValidBaseLogEntries(book.HarvestLogEntries);
-							if (logEntryList != null)
+
+							var previouslyMissingFontNames = book.GetMissingFonts();
+
+							if (previouslyMissingFontNames.Any())
 							{
-								var previouslyMissingFontNames = logEntryList.Where(x => x is MissingFontError).Select(x => (x as MissingFontError).FontName);
+								var stillMissingFontNames = GetMissingFonts(previouslyMissingFontNames);
 
-								if (previouslyMissingFontNames.Any())
+								if (stillMissingFontNames.Any())
 								{
-									var stillMissingFontNames = GetMissingFonts(previouslyMissingFontNames);
-
-									if (stillMissingFontNames.Any())
-									{
-										reason = $"SKIP: Still missing font {stillMissingFontNames.First()}";
-										return false;
-									}
+									reason = $"SKIP: Still missing font {stillMissingFontNames.First()}";
+									return false;
 								}
 							}
 
@@ -712,16 +711,6 @@ namespace BloomHarvester
 			{
 				throw new ArgumentException("Unexpected mode: " + harvestMode);
 			}
-		}
-
-		private static IEnumerable<BaseLogEntry> GetValidBaseLogEntries(List<string> logEntryStrList)
-		{
-			if (logEntryStrList == null)
-			{
-				return null;
-			}
-
-			return logEntryStrList.Select(str => BaseLogEntry.ParseFromLogEntry(str)).Where(x => x != null);
 		}
 
 		// Precondition: Assumes that baseUrl is not URL-encoded, and that it ends with the book title as a subfolder.
@@ -755,9 +744,9 @@ namespace BloomHarvester
 		/// </summary>
 		/// <param name="book">The book to check</param>
 		/// <returns></returns>
-		private List<BaseLogEntry> FindBookWarnings(Book book)
+		private List<LogEntry> FindBookWarnings(Book book)
 		{
-			var warnings = new List<BaseLogEntry>();
+			var warnings = new List<LogEntry>();
 
 			if (book == null)
 			{
@@ -766,7 +755,7 @@ namespace BloomHarvester
 
 			if (String.IsNullOrWhiteSpace(book.BaseUrl))
 			{
-				warnings.Add(new MissingBaseUrlWarning());
+				warnings.Add(new LogEntry(LogLevel.Warn, LogType.MissingBaseUrl, ""));
 			}
 
 			if (warnings.Any())
@@ -778,9 +767,9 @@ namespace BloomHarvester
 		}
 
 		// Returns true if at least one font is missing
-		private List<BaseLogEntry> CheckForMissingFontErrors(string bookPath, Book book)
+		private List<LogEntry> CheckForMissingFontErrors(string bookPath, Book book)
 		{
-			var harvestLogEntries = new List<BaseLogEntry>();
+			var harvestLogEntries = new List<LogEntry>();
 
 			var missingFontsForCurrBook = GetMissingFonts(bookPath, out bool success);
 
@@ -789,7 +778,7 @@ namespace BloomHarvester
 				// We now require successful determination of which fonts are missing.
 				// Since we abort processing a book if any fonts are missing,
 				// we don't want to proceed blindly if we're not sure if the book is missing any fonts.
-				harvestLogEntries.Add(new LogEntries.GetFontsError());
+				harvestLogEntries.Add(new LogEntry(LogLevel.Error, LogType.GetFontsError, "Error calling getFonts"));
 				return harvestLogEntries;
 			}
 
@@ -800,7 +789,7 @@ namespace BloomHarvester
 
 				foreach (var missingFont in missingFontsForCurrBook)
 				{
-					var logEntry = new LogEntries.MissingFontError(missingFont);
+					var logEntry = new LogEntry(LogLevel.Error, LogType.MissingFont, message: missingFont);
 					harvestLogEntries.Add(logEntry);
 
 					if (!_missingFonts.Contains(missingFont))
@@ -895,7 +884,7 @@ namespace BloomHarvester
 			return fontFamilyDict;
 		}
 
-		private bool CreateArtifacts(string downloadUrl, string downloadBookDir, string collectionFilePath, Book book, List<BaseLogEntry> harvestLogEntries)
+		private bool CreateArtifacts(string downloadUrl, string downloadBookDir, string collectionFilePath, Book book, List<LogEntry> harvestLogEntries)
 		{
 			Debug.Assert(book != null, "CreateArtifacts(): book expected to be non-null");
 			Debug.Assert(harvestLogEntries != null, "CreateArtifacts(): harvestLogEntries expected to be non-null");
@@ -947,12 +936,17 @@ namespace BloomHarvester
 							IEnumerable<string> errors = Bloom.CLI.CreateArtifactsCommand.GetErrorsFromExitCode(bloomExitCode) ?? Enumerable.Empty<string>();
 							string errorInfo = String.Join(", ", errors);
 							errorDescription += $"Bloom Command Line error: CreateArtifacts failed with exit code: {bloomExitCode} ({errorInfo}).";
+
+							// TODO: Update HarvestLog with a BloomCLIError
 						}
 					}
 					else
 					{
 						success = false;
-						errorDescription += $"Bloom Command Line error: CreateArtifacts terminated because it exceeded {kCreateArtifactsTimeoutSecs} seconds.";
+						string error = $"Bloom Command Line error: CreateArtifacts terminated because it exceeded {kCreateArtifactsTimeoutSecs} seconds."
+						errorDescription += error;
+						// TODO: Update HarvestLog with a TimeoutError
+						var logEntry = new LogEntry(LogLevel.Error, LogType.TimeoutError, error);
 					}
 
 					if (success && !_options.SkipUploadBloomDigitalArtifacts)
@@ -962,7 +956,8 @@ namespace BloomHarvester
 						{
 							success = false;
 							errorDescription += $"BloomDigital folder missing index.htm file";
-							harvestLogEntries.Add(new MissingBloomDigitalIndexError());
+							// ENHANCE: Maybe you could downgrade this to a warning, let it proceed, and then have the artifact suitability code check for this and mark Read Online suitability = false
+							harvestLogEntries.Add(new LogEntry(LogLevel.Error, LogType.MissingBloomDigitalIndex, "Missing BloomDigital index.htm file"));
 						}
 					}
 

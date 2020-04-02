@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using NUnit.Framework;
 using BloomHarvester;
 using BloomHarvester.Parse.Model;
@@ -34,7 +32,7 @@ namespace BloomHarvesterTests
 				HarvesterMinorVersion = previousVersion.Minor,
 				HarvestLogEntries = new List<string>()
 				{
-					new MissingBaseUrlWarning().ToString()
+					new BloomHarvester.LogEntries.LogEntry(LogLevel.Warn, LogType.MissingBaseUrl, "").ToString()
 				}
 			};
 
@@ -87,9 +85,9 @@ namespace BloomHarvesterTests
 				HarvesterMajorVersion = previousVersion.Major,
 				HarvesterMinorVersion = previousVersion.Minor,
 				HarvestLogEntries = new List<string>()
-					{
-						new MissingBaseUrlWarning().ToString()
-					}
+				{
+					new BloomHarvester.LogEntries.LogEntry(LogLevel.Warn, LogType.MissingBaseUrl, "").ToString()
+				}
 			};
 
 			bool result = RunShouldProcessBook(book, currentVersionStr);
@@ -116,9 +114,9 @@ namespace BloomHarvesterTests
 				HarvesterMajorVersion = previousVersion.Major,
 				HarvesterMinorVersion = previousVersion.Minor,
 				HarvestLogEntries = new List<string>()
-					{
-						new MissingBaseUrlWarning().ToString()
-					}
+				{
+					new BloomHarvester.LogEntries.LogEntry(LogLevel.Warn, LogType.MissingBaseUrl, "").ToString()
+				}
 			};
 
 			bool result = RunShouldProcessBook(book, currentVersionStr);
@@ -161,9 +159,9 @@ namespace BloomHarvesterTests
 				HarvesterMajorVersion = 2,
 				HarvesterMinorVersion = 0,
 				HarvestLogEntries = new List<string>()
-					{
-						new MissingFontError("SomeCompletelyMadeUpNonExistentFont").ToString()
-					}
+				{
+					CreateMissingFontLogEntry("SomeCompletelyMadeUpNonExistentFont").ToString()
+				}
 			};
 
 			foreach (int majorVersion in majorVersionNums)
@@ -187,7 +185,7 @@ namespace BloomHarvesterTests
 				HarvesterMinorVersion = 0,
 				HarvestLogEntries = new List<string>()
 				{
-					new MissingFontError("SomeCompletelyMadeUpNonExistentFont").ToString()
+					CreateMissingFontLogEntry("SomeCompletelyMadeUpNonExistentFont").ToString()
 				}
 			};
 
@@ -206,7 +204,7 @@ namespace BloomHarvesterTests
 				HarvesterMinorVersion = 0,
 				HarvestLogEntries = new List<string>()
 				{
-					new MissingFontError("Arial").ToString()    // Hopefully on the test machine...
+					CreateMissingFontLogEntry("Arial").ToString()    // Hopefully on the test machine...
 				}
 			};
 
@@ -225,8 +223,8 @@ namespace BloomHarvesterTests
 				HarvesterMinorVersion = 0,
 				HarvestLogEntries = new List<string>()
 				{
-					new MissingFontError("Arial").ToString(),	// Hopefully on the test machine...
-					new MissingFontError("SomeCompletelyMadeUpNonExistentFont").ToString()
+					CreateMissingFontLogEntry("Arial").ToString(),	// Hopefully on the test machine...
+					CreateMissingFontLogEntry("SomeCompletelyMadeUpNonExistentFont").ToString()
 				}
 			};
 
@@ -244,6 +242,11 @@ namespace BloomHarvesterTests
 			List<string> missingFontsResult = (List<string>)(invoker.InvokeStatic("GetMissingFonts", fontNamesUsedInBook));
 
 			Assert.AreEqual(0, missingFontsResult.Count, "No missing fonts were expected.");
+		}
+
+		private static BloomHarvester.LogEntries.LogEntry CreateMissingFontLogEntry(string fontName)
+		{
+			return new BloomHarvester.LogEntries.LogEntry(LogLevel.Error, LogType.MissingFont, fontName);
 		}
 
 		[Test]

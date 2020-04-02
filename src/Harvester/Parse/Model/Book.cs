@@ -1,3 +1,4 @@
+using BloomHarvester.LogEntries;
 using Newtonsoft.Json;
 using System;
 using System.Collections;
@@ -210,6 +211,22 @@ namespace BloomHarvester.Parse.Model
 			}
 			string anchorReference = $"https://{subdomain}bloomlibrary.org/browse/detail/{this.ObjectId}";
 			return anchorReference;
+		}
+
+		internal IEnumerable<LogEntry> GetValidLogEntries()
+		{
+			if (this.HarvestLogEntries == null)
+			{
+				return null;
+			}
+
+			return this.HarvestLogEntries.Select(str => LogEntry.Parse(str)).Where(x => x != null);
+		}
+
+		internal IEnumerable<string> GetMissingFonts()
+		{
+			var previouslyMissingFontNames = this.GetValidLogEntries().Where(x => x.Type == LogType.MissingFont).Select(x => x.Message);
+			return previouslyMissingFontNames;
 		}
 
 		/// <summary>

@@ -485,21 +485,23 @@ namespace BloomHarvester
 				isSuccessful = false;
 				string bookId = book.Model?.ObjectId ?? "null";
 				string bookUrl = book.Model?.BaseUrl ?? "null";
-				YouTrackIssueConnector.ReportExceptionToYouTrack(e, $"Unhandled exception \"{e.Message}\" thrown.", book, _parseDBEnvironment, exitImmediately: false);
+				string errorMessage = $"Unhandled exception \"{e.Message}\" thrown.";
+				YouTrackIssueConnector.ReportExceptionToYouTrack(e, errorMessage, book, _parseDBEnvironment, exitImmediately: false);
 
 				// Attempt to write to Parse that processing failed
 				if (!String.IsNullOrEmpty(book.Model?.ObjectId))
 				{
 					try
 					{
-						book.HarvestState = Parse.Model.HarvestState.Failed.ToString();
-						book.HarvesterId = this.Identifier;
-						if (book.HarvestLogEntries == null)
+						book.Model.HarvestState = Parse.Model.HarvestState.Failed.ToString();
+						book.Model.HarvesterId = this.Identifier;
+						if (book.Model.HarvestLogEntries == null)
 						{
-							book.HarvestLogEntries = new List<string>();
+							book.Model.HarvestLogEntries = new List<string>();
 						}
-						// TODO: Add some info to Harvester log
-						book.FlushUpdateToDatabase(_parseClient);
+						var logEntry = new LogEntry(LogLevel.Error, LogType.ProcessBookError, errorMessage);
+						book.Model.HarvestLogEntries.Add(logEntry.ToString());
+						book.Model.FlushUpdateToDatabase(_parseClient);
 					}
 					catch (Exception)
 					{
@@ -914,18 +916,18 @@ namespace BloomHarvester
 							success = false;
 							IEnumerable<string> errors = Bloom.CLI.CreateArtifactsCommand.GetErrorsFromExitCode(bloomExitCode) ?? Enumerable.Empty<string>();
 							string errorInfo = String.Join(", ", errors);
-							errorDescription += $"Bloom Command Line error: CreateArtifacts failed with exit code: {bloomExitCode} ({errorInfo}).";
+							string errorMessage = $"Bloom Command Line error: CreateArtifacts failed with exit code: {bloomExitCode} ({errorInfo}).";
+							errorDescription += errorMessage;
 
-							// TODO: Update HarvestLog with a BloomCLIError
+							var logEntry = new LogEntry(LogLevel.Error, LogType.TimeoutError, errorMessage);
 						}
 					}
 					else
 					{
 						success = false;
-						string error = $"Bloom Command Line error: CreateArtifacts terminated because it exceeded {kCreateArtifactsTimeoutSecs} seconds."
-						errorDescription += error;
-						// TODO: Update HarvestLog with a TimeoutError
-						var logEntry = new LogEntry(LogLevel.Error, LogType.TimeoutError, error);
+						string errorMessage = $"Bloom Command Line error: CreateArtifacts terminated because it exceeded {kCreateArtifactsTimeoutSecs} seconds.";
+						errorDescription += errorMessage;
+						var logEntry = new LogEntry(LogLevel.Error, LogType.TimeoutError, errorMessage);
 					}
 
 					if (success && !_options.SkipUploadBloomDigitalArtifacts)

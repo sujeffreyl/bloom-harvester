@@ -13,6 +13,7 @@ namespace BloomHarvester.LogEntries
 		MissingBaseUrl,
 		MissingBloomDigitalIndex,
 		MissingFont,
+		ProcessBookError,
 		TimeoutError
 	}
 }

@@ -39,7 +39,7 @@ namespace BloomHarvester
 			}
 
 			string[] fieldsToDereference = new string[] { "langPointers", "uploader" };
-			IEnumerable<Book> bookList = _parseClient.GetBooks(out bool didExitPrematurely, _options.QueryWhere, fieldsToDereference);
+			IEnumerable<BookModel> bookList = _parseClient.GetBooks(out bool didExitPrematurely, _options.QueryWhere, fieldsToDereference);
 
 			if (didExitPrematurely)
 			{

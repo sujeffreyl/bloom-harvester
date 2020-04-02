@@ -8,7 +8,7 @@ namespace BloomHarvester.LogEntries
 {
 	enum LogType
 	{
-		BloomCLIError
+		BloomCLIError,
 		GetFontsError,
 		MissingBaseUrl,
 		MissingBloomDigitalIndex,

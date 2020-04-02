@@ -16,7 +16,7 @@ namespace BloomHarvesterTests.Parse
 		{
 			DateTime startDateTime = new DateTime(2019, 9, 11, 0, 0, 0, DateTimeKind.Utc);
 			// Setup
-			var book = new Book()
+			var book = new BookModel()
 			{
 				HarvestState = "Done",
 				HarvestStartedAt = new ParseDate(startDateTime),

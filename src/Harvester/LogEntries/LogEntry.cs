@@ -28,7 +28,7 @@ namespace BloomHarvester.LogEntries
 		/// Reads an entry from harvestLog field and attempts to parse it
 		/// </summary>
 		/// <param name="logEntry">An entry from the harvestLog field in Parse's books class</param>
-		/// <returns>An object which is some type of BaseLogEntry if the string could be parsed, or null otherwise</returns>
+		/// <returns>An object which is some type of LogEntry if the string could be parsed, or null otherwise</returns>
 		public static LogEntry Parse(string logEntry)
 		{
 			if (String.IsNullOrEmpty(logEntry))

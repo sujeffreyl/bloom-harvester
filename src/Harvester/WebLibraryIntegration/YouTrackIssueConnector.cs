@@ -43,7 +43,7 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 			}
 		}
 
-		private static void ReportToYouTrack(string projectKey, string summary, string description, bool exitImmediately)
+		private void ReportToYouTrack(string projectKey, string summary, string description, bool exitImmediately)
 		{
 			Console.Error.WriteLine("ERROR: " + summary);
 			Console.Error.WriteLine("==========================");

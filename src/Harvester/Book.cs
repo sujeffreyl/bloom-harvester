@@ -7,6 +7,7 @@ using BloomHarvester.LogEntries;
 using BloomHarvester.Logger;
 using BloomHarvester.Parse.Model;
 using Newtonsoft.Json;
+using SIL.IO;
 
 namespace BloomHarvester
 {
@@ -244,6 +245,18 @@ namespace BloomHarvester
 			}
 			string anchorReference = $"https://{subdomain}bloomlibrary.org/browse/detail/{Model.ObjectId}";
 			return anchorReference;
+		}
+
+		internal void UpdatePerceptualHash(string infoPath)
+		{
+			if (!RobustFile.Exists(infoPath))
+				return;
+
+			string pHashText = RobustFile.ReadAllText(infoPath);
+			if (pHashText == "null")
+				pHashText = null;
+
+			this.Model.PHashOfFirstContentImage = pHashText;
 		}
 
 		/// <summary>

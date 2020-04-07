@@ -5,6 +5,7 @@ using BloomHarvester.Parse.Model;
 using VSUnitTesting = Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json;
 using NUnit.Framework;
+using SIL.IO;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -267,6 +268,33 @@ namespace BloomHarvesterTests
 			Assert.That(url, Is.Null);
 		}
 		#endregion
+
+		[Test]
+		public void Book_UpdatePerceptualHash_NormalHash_ModelUpdated()
+		{
+			var book = CreateBook(new BookModel());
+			string pHashDigest = "0xADA0BB7900AC75A7B67B66FEB6BF84D2B4AAAAAD9B9DB6C0B2A3B7AFAFA7ABACA7B0B3AFAEABB2AF";
+			using (var file = new TempFile(pHashDigest))
+			{
+				book.UpdatePerceptualHash(file.Path);
+			}
+
+			Assert.That(book.Model.PHashOfFirstContentImage, Is.EqualTo(pHashDigest));
+		}
+
+		[Test]
+		public void Book_UpdatePerceptualHash_NullHash_ModelUpdatedWithNullValue()
+		{
+			var book = CreateBook(new BookModel());
+			string pHashDigest = "null";
+			using (var file = new TempFile(pHashDigest))
+			{
+				book.UpdatePerceptualHash(file.Path);
+			}
+
+			// Namely, null value not a literal string "null"
+			Assert.That(book.Model.PHashOfFirstContentImage, Is.EqualTo(null));			
+		}
 
 		[Test]
 		public void Book_UpdateMetadata_NotEqual_PendingUpdatesFound()

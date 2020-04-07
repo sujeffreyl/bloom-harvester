@@ -24,6 +24,9 @@
       <HintPath>..\..\lib\dotnet\Bloom.exe</HintPath>
     </Reference>
     <Reference Include="Microsoft.CSharp" />
+    <Reference Include="SIL.Core">
+      <HintPath>..\..\lib\dotnet\SIL.Core.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">

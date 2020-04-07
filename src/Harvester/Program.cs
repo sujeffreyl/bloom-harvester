@@ -132,6 +132,9 @@ namespace BloomHarvester
 		[Option("skipUploadThumbnails", Required = false, Default = false, HelpText = "If true, will prevent new thumbnails from being created and uploaded.")]
 		public bool SkipUploadThumbnails { get; set; }
 
+		[Option("skipUpdatePerceptualHash", Required = false, Default = false, HelpText = "If true, will prevent perceptual hash from being created and uploaded.")]
+		public bool SkipUpdatePerceptualHash{ get; set; }
+
 		[Option("skipUpdateMetadata", Required = false, Default = false, HelpText = "If true, will skip updating the metadata (e.g. Features field) in Parse.")]
 		public bool SkipUpdateMetadata { get; set; }
 

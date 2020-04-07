@@ -810,9 +810,12 @@ namespace BloomHarvester
 				string bloomArguments = $"getfonts --bookpath \"{bookPath}\" --reportpath \"{reportFile.Path}\"";
 				bool subprocessSuccess = BloomCli.StartAndWaitForBloomCli(bloomArguments, kGetFontsTimeoutSecs * 1000, out int exitCode, out string stdOut, out string stdError);
 
-				if (!subprocessSuccess)
+				if (!subprocessSuccess || !SIL.IO.RobustFile.Exists(reportFile.Path))
 				{
 					_logger.LogError("Error: Could not determine fonts from book located at " + bookPath);
+					_logger.LogVerbose("Standard output:\n" + stdOut);
+					_logger.LogVerbose("Standard error:\n" + stdError);
+
 					success = false;
 					return missingFonts;
 				}
@@ -848,6 +851,7 @@ namespace BloomHarvester
 		/// <returns>A list of strings, one for each font referenced by the book.</returns>
 		private static List<string> GetFontsFromReportFile(string filePath)
 		{
+			// Precondition: Caller should guarantee that filePath exists
 			var referencedFonts = new List<string>();
 
 			string[] lines = File.ReadAllLines(filePath);   // Not expecting many lines in this file
@@ -887,6 +891,7 @@ namespace BloomHarvester
 					string zippedBloomDOutputPath = Path.Combine(folderForZipped.FolderPath, $"{components.BookTitle}.bloomd");
 					string epubOutputPath = Path.Combine(folderForZipped.FolderPath, $"{components.BookTitle}.epub");
 					string thumbnailInfoPath = Path.Combine(folderForZipped.FolderPath, "thumbInfo.txt");
+					string perceptualHashInfoPath = Path.Combine(folderForZipped.FolderPath, "pHashInfo.txt");
 
 					string bloomArguments = $"createArtifacts \"--bookPath={downloadBookDir}\" \"--collectionPath={collectionFilePath}\"";
 					if (!_options.SkipUploadBloomDigitalArtifacts || !_options.SkipUpdateMetadata)
@@ -903,6 +908,11 @@ namespace BloomHarvester
 					if (!_options.SkipUploadThumbnails)
 					{
 						bloomArguments += $" \"--thumbnailOutputInfoPath={thumbnailInfoPath}\"";
+					}
+
+					if (!_options.SkipUpdatePerceptualHash)
+					{
+						bloomArguments += $" \"--pHashOutputInfoPath={perceptualHashInfoPath}\"";
 					}
 
 					// Start a Bloom command line in a separate process
@@ -978,6 +988,11 @@ namespace BloomHarvester
 						if (!_options.SkipUploadThumbnails)
 						{
 							UploadThumbnails(thumbnailInfoPath, s3FolderLocation);
+						}
+
+						if (!_options.SkipUpdatePerceptualHash)
+						{
+							book.UpdatePerceptualHash(perceptualHashInfoPath);
 						}
 
 						if (!_options.SkipUpdateMetadata)

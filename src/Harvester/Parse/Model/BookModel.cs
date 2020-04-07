@@ -1,3 +1,4 @@
+using BloomHarvester.LogEntries;
 using Newtonsoft.Json;
 using System;
 using System.Collections;
@@ -143,6 +144,21 @@ namespace BloomHarvester.Parse.Model
 		internal static string GetStaticParseClassName()
 		{
 			return "books";
+		}
+		internal IEnumerable<LogEntry> GetValidLogEntries()
+		{
+			if (this.HarvestLogEntries == null)
+			{
+				return null;
+			}
+
+			return this.HarvestLogEntries.Select(str => LogEntry.Parse(str)).Where(x => x != null);
+		}
+
+		internal IEnumerable<string> GetMissingFonts()
+		{
+			var previouslyMissingFontNames = this.GetValidLogEntries().Where(x => x.Type == LogType.MissingFont).Select(x => x.Message);
+			return previouslyMissingFontNames;
 		}
 
 		#region Batch Parse Update code

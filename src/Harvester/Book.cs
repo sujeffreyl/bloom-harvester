@@ -32,9 +32,9 @@ namespace BloomHarvester
 		/// </summary>
 		/// <param name="book">The book to check</param>
 		/// <returns></returns>
-		internal List<BaseLogEntry> FindBookWarnings()
+		internal List<LogEntry> FindBookWarnings()
 		{
-			var warnings = new List<BaseLogEntry>();
+			var warnings = new List<LogEntry>();
 
 			if (this.Model == null)
 			{
@@ -43,7 +43,7 @@ namespace BloomHarvester
 
 			if (String.IsNullOrWhiteSpace(this.Model.BaseUrl))
 			{
-				warnings.Add(new MissingBaseUrlWarning());
+				warnings.Add(new LogEntry(LogLevel.Warn, LogType.MissingBaseUrl, ""));
 			}
 
 			if (warnings.Any())

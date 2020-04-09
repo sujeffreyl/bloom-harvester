@@ -1,7 +1,23 @@
 param (
+    [Parameter(Mandatory)]
+    [ValidateSet('dev', 'prod')]
+	[string]$environment,
+
     [Switch]$skipDownload
 )
-$harvestRootDir = "C:\Harvester";
+
+$harvestRootDir = "C:\HarvesterDev";
+$buildQueueName = "Bloom_HarvesterMasterContinuous";
+If ($environment -eq "prod") {
+	$harvestRootDir = "C:\Harvester";
+    $buildQueueName = "Bloom_HarvesterReleaseContinuous";
+}
+
+# Intentionally using the same RestartOnCrash exe for both.
+# Just easier to manage just one settings file than having multiple instances running 
+$restartOnCrashPath = "C:\Harvester\RestartOnCrash\RestartOnCrash.exe"
+
+
 $outputDir= "$($harvestRootDir)\ReleaseNext"
 $currentVersionDir ="$($harvestRootDir)\Release"
 $backupOfPreviousDir= "$($harvestRootDir)\ReleasePrev"
@@ -17,7 +33,7 @@ $downloadDir = "$PSScriptRoot\Download"
 
 # Download the latest build (if requested)
 $unzipDestination = "$($downloadDir)\Unzipped"
-$command = "$($PSScriptRoot)\downloadAndExtractZip.ps1 -URL https://build.palaso.org/guestAuth/repository/downloadAll/Bloom_HarvesterMasterContinuous/latest.lastSuccessful -Filename harvester.zip -Output $($downloadDir)\Unzipped $(If ($skipDownload) { "-skipDownload"})"
+$command = "$($PSScriptRoot)\downloadAndExtractZip.ps1 -URL https://build.palaso.org/guestAuth/repository/downloadAll/$($buildQueueName)/latest.lastSuccessful -Filename harvester.zip -Output $($downloadDir)\Unzipped $(If ($skipDownload) { "-skipDownload"})"
 Invoke-Expression $command
 
 # Copy from the unzip destination
@@ -57,7 +73,6 @@ for ($tryNumber = 0; $tryNumber -lt $maxTries; $tryNumber++) {
 
 
 Write-Host "Killing any existing Harvester-related processes."
-$restartOnCrashPath = "$($harvestRootDir)\RestartOnCrash\RestartOnCrash.exe"
 $harvesterExePath = "$($currentVersionDir)\BloomHarvester.exe"
 Get-Process -Name "RestartOnCrash" -ErrorAction Ignore | Where-Object { $_.Path -eq $restartOnCrashPath } | Stop-Process -Verbose
 Get-Process -Name "BloomHarvester" -ErrorAction Ignore | Where-Object { $_.Path -eq $harvesterExePath } | Stop-Process -Verbose

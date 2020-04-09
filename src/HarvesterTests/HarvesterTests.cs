@@ -48,6 +48,7 @@ namespace BloomHarvesterTests
 		}
 
 		#region ShouldProcessBook() tests
+		#region Default mode
 		// Process cases
 		[TestCase("1.1", "0.9", PROCESS)]   // current is newer by a major version
 		// Skip cases
@@ -75,6 +76,31 @@ namespace BloomHarvesterTests
 			bool result = RunShouldProcessBook(book, currentVersionStr);
 			Assert.AreEqual(expectedResult, result);
 		}
+
+		[Test]
+		public void ShouldProcessBook_DefaultMode_FailedState_Version3Error()
+		{
+			BookModel book = SetupDefaultBook(HarvestState.Failed, "3.0");
+			book.HarvestLogEntries = new List<string>();
+			book.HarvestLogEntries.Add("MissingFontError madeUpFontName");	// This won't be parsed as a valid log entry anymore
+
+			bool result = RunShouldProcessBook(book, "4.0");
+
+			Assert.AreEqual(true, result);
+		}
+
+		[Test]
+		public void ShouldProcessBook_DefaultMode_FailedState_HarvestVersionNull()
+		{
+			BookModel book = SetupDefaultBook(HarvestState.Failed, "3.0");
+			book.HarvestLogEntries = null;
+
+			// Hopefully won't throw a Source must not be null (basically a Null Reference Exception)
+			bool result = RunShouldProcessBook(book, "4.0");
+
+			Assert.AreEqual(true, result);
+		}
+		#endregion
 
 		#region HarvestState=InProgress
 		[TestCase("1.1", "0.9")]    // In particular, even when the current version is newer than previousVersion, we should still skip it if it's recently marked InProgress

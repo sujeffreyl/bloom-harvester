@@ -452,7 +452,7 @@ namespace BloomHarvesterTests
 				Assert.That(book.Model.HarvestState, Is.EqualTo("Failed"), "HarvestState should be failed");
 
 				// Validate that the code did in fact attempt to report an error
-				harvester._issueReporter.Received().ReportMissingFont("madeUpFontName", "UnitTestHarvester", EnvironmentSetting.Local, book);
+				harvester._issueReporter.Received().ReportMissingFont("madeUpFontName", "UnitTestHarvester", EnvironmentSetting.Local, book.Model);
 			}
 		}
 		#endregion

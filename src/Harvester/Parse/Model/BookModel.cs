@@ -151,9 +151,7 @@ namespace BloomHarvester.Parse.Model
 		internal IEnumerable<LogEntry> GetValidLogEntries()
 		{
 			if (this.HarvestLogEntries == null)
-			{
-				return null;
-			}
+				return Enumerable.Empty<LogEntry>();
 
 			return this.HarvestLogEntries.Select(str => LogEntry.Parse(str)).Where(x => x != null);
 		}

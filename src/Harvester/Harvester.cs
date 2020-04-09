@@ -219,42 +219,50 @@ namespace BloomHarvester
 
 					foreach (var bookModel in bookList)
 					{
-						// Decide if we should process it.
-						bool shouldBeProcessed = ShouldProcessBook(bookModel, out string reason);
-						if (shouldBeProcessed || kEnableLoggingSkippedBooks)
+						try
 						{
-							_logger.LogInfo($"{bookModel.ObjectId} - {reason}");
-						}
+							var book = new Book(bookModel, _logger);
 
-						if (!shouldBeProcessed)
-						{
-							skippedBooks.Add(bookModel);
-
-							if (bookModel.HarvestState == Parse.Model.HarvestState.Done.ToString())
+							// Decide if we should process it.
+							bool shouldBeProcessed = ShouldProcessBook(bookModel, out string reason);
+							if (shouldBeProcessed || kEnableLoggingSkippedBooks)
 							{
-								// Something else has marked this book as no longer failed
-								_cumulativeFailedBookIdSet.Remove(bookModel.ObjectId);
+								_logger.LogInfo($"{bookModel.ObjectId} - {reason}");
 							}
 
-							continue;
-						}
+							if (!shouldBeProcessed)
+							{
+								skippedBooks.Add(bookModel);
 
-						var book = new Book(bookModel, _logger);
-						bool isSuccessful = ProcessOneBook(book);
-						if (isSuccessful)
-						{
-							// We know this book is no longer failed
-							_cumulativeFailedBookIdSet.Remove(bookModel.ObjectId);
-						}
-						else
-						{
-							failedBooks.Add(bookModel);
-						}
-						++numBooksProcessed;
+								if (bookModel.HarvestState == Parse.Model.HarvestState.Done.ToString())
+								{
+									// Something else has marked this book as no longer failed
+									_cumulativeFailedBookIdSet.Remove(bookModel.ObjectId);
+								}
 
-						if (maxBooksToProcess > 0 && numBooksProcessed >= maxBooksToProcess)
+								continue;
+							}
+							
+							bool isSuccessful = ProcessOneBook(book);
+							if (isSuccessful)
+							{
+								// We know this book is no longer failed
+								_cumulativeFailedBookIdSet.Remove(bookModel.ObjectId);
+							}
+							else
+							{
+								failedBooks.Add(bookModel);
+							}
+							++numBooksProcessed;
+
+							if (maxBooksToProcess > 0 && numBooksProcessed >= maxBooksToProcess)
+							{
+								break;
+							}
+						}
+						catch (Exception e)
 						{
-							break;
+							_issueReporter.ReportException(e, $"Unhandled exception thrown while running Harvest() function on a book.", bookModel, _parseDBEnvironment, exitImmediately: false);
 						}
 					}
 
@@ -487,7 +495,7 @@ namespace BloomHarvester
 				string bookId = book.Model?.ObjectId ?? "null";
 				string bookUrl = book.Model?.BaseUrl ?? "null";
 				string errorMessage = $"Unhandled exception \"{e.Message}\" thrown.";
-				_issueReporter.ReportException(e, errorMessage, book, _parseDBEnvironment, exitImmediately: false);
+				_issueReporter.ReportException(e, errorMessage, book.Model, _parseDBEnvironment, exitImmediately: false);
 
 				// Attempt to write to Parse that processing failed
 				if (!String.IsNullOrEmpty(book.Model?.ObjectId))
@@ -766,7 +774,7 @@ namespace BloomHarvester
 				// Since we abort processing a book if any fonts are missing,
 				// we don't want to proceed blindly if we're not sure if the book is missing any fonts.
 				harvestLogEntries.Add(new LogEntry(LogLevel.Error, LogType.GetFontsError, "Error calling getFonts"));
-				_issueReporter.ReportError("Error calling getMissingFonts", "", "", _options.Environment, book);
+				_issueReporter.ReportError("Error calling getMissingFonts", "", "", _options.Environment, book.Model);
 				return harvestLogEntries;
 			}
 
@@ -782,7 +790,7 @@ namespace BloomHarvester
 
 					if (!_missingFonts.Contains(missingFont))
 					{
-						_issueReporter.ReportMissingFont(missingFont, this.Identifier, _parseDBEnvironment, book);
+						_issueReporter.ReportMissingFont(missingFont, this.Identifier, _parseDBEnvironment, book.Model);
 						_missingFonts.Add(missingFont);
 					}
 					else
@@ -966,7 +974,7 @@ namespace BloomHarvester
 						_logger.LogError(errorDetails);
 						errorDetails += $"\n===StandardOut===\n{bloomStdOut ?? ""}\n";
 						errorDetails += $"\n===StandardError===\n{bloomStdErr ?? ""}";
-						_issueReporter.ReportError("Harvester BloomCLI Error", errorDescription, errorDetails, _parseDBEnvironment, book);
+						_issueReporter.ReportError("Harvester BloomCLI Error", errorDescription, errorDetails, _parseDBEnvironment, book.Model);
 					}
 					else
 					{

@@ -226,49 +226,6 @@ namespace BloomHarvesterTests
 		}
 		#endregion
 
-		#region GetBloomLibraryBookDetailLink
-		[Test]
-		public void Book_GetBloomLibraryBookDetailLink_Prod_PopulatesLink()
-		{
-			var book = CreateBook(new BookModel()
-			{
-				ObjectId = "myObjectId"
-			});
-
-			string url = book.GetDetailLink(EnvironmentSetting.Prod);
-
-			Assert.That(url, Is.EqualTo("https://bloomlibrary.org/browse/detail/myObjectId"));
-		}
-
-		[Test]
-		public void Book_GetBloomLibraryBookDetailLink_Dev_PopulatesLink()
-		{
-			var book = CreateBook(new BookModel()
-			{
-				ObjectId = "myObjectId"
-			});
-
-			string url = book.GetDetailLink(EnvironmentSetting.Dev);
-
-			Assert.That(url, Is.EqualTo("https://dev.bloomlibrary.org/browse/detail/myObjectId"));
-		}
-
-		[TestCase(null)]
-		[TestCase("")]
-		[TestCase(" ")]
-		public void Book_GetBloomLibraryBookDetailLink_BadInput_ErrorReported(string badObjectId)
-		{
-			var book = CreateBook(new BookModel()
-			{
-				ObjectId = badObjectId
-			});
-
-			string url = book.GetDetailLink(EnvironmentSetting.Dev);
-
-			Assert.That(url, Is.Null);
-		}
-		#endregion
-
 		[Test]
 		public void Book_UpdatePerceptualHash_NormalHash_ModelUpdated()
 		{

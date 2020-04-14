@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Web;
 using Bloom.WebLibraryIntegration;
+using BloomHarvester.IO;
 using BloomHarvester.LogEntries;
 using BloomHarvester.Logger;
 using BloomHarvester.Parse;
@@ -36,6 +37,7 @@ namespace BloomHarvester
 		internal IS3Client _s3UploadClient;  // Note that we upload books to a different bucket than we download them from, so we have a separate client.
 		private DateTime _initTime;
 		internal IBloomCliInvoker BloomCli { get; set; }
+		internal IFileIO _fileIO = new FileIO();
 		protected HarvesterOptions _options;
 		private HashSet<string> _cumulativeFailedBookIdSet = new HashSet<string>();
 		private HashSet<string> _missingFonts = new HashSet<string>();
@@ -984,7 +986,7 @@ namespace BloomHarvester
 					if (success && !_options.SkipUploadBloomDigitalArtifacts)
 					{
 						string expectedIndexPath = Path.Combine(folderForUnzipped.FolderPath, "index.htm");
-						if (!SIL.IO.RobustFile.Exists(expectedIndexPath))
+						if (!_fileIO.Exists(expectedIndexPath))
 						{
 							success = false;
 							errorDescription += $"BloomDigital folder missing index.htm file";

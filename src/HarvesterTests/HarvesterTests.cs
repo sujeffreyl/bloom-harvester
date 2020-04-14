@@ -3,18 +3,16 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using BloomHarvester;
+using BloomHarvester.IO;
 using BloomHarvester.LogEntries;
 using BloomHarvester.Logger;
 using BloomHarvester.Parse;
 using BloomHarvester.Parse.Model;
 using BloomHarvester.WebLibraryIntegration;
-using BloomHarvesterTests.Parse.Model;
 using VSUnitTesting = Microsoft.VisualStudio.TestTools.UnitTesting;
 using NSubstitute;
 using NSubstitute.Extensions;
 using NUnit.Framework;
-using SIL.IO;
-using BloomTemp;
 
 namespace BloomHarvesterTests
 {
@@ -341,7 +339,7 @@ namespace BloomHarvesterTests
 		#region ProcessOneBook() tests
 		private HarvesterOptions GetHarvesterOptionsForProcessOneBookTests() => new HarvesterOptions() { Mode = HarvestMode.All, SuppressLogs = true, Environment = EnvironmentSetting.Local, ParseDBEnvironment = EnvironmentSetting.Local };
 
-		private Harvester GetSubstituteHarvester(HarvesterOptions options, IBloomCliInvoker bloomCli = null, IParseClient parseClient = null, IBookTransfer transferClient = null, IBookAnalyzer bookAnalyzer = null, IS3Client s3UploadClient = null, bool ignoreFonts = true)
+		private Harvester GetSubstituteHarvester(HarvesterOptions options, IBloomCliInvoker bloomCli = null, IParseClient parseClient = null, IBookTransfer transferClient = null, IBookAnalyzer bookAnalyzer = null, IS3Client s3UploadClient = null, IFileIO fileIO = null, bool ignoreFonts = true)
 		{
 			options.SuppressLogs = true;	// Probably not meaningful for tests
 
@@ -358,20 +356,25 @@ namespace BloomHarvesterTests
 				bloomCli.Configure().StartAndWaitForBloomCli(default, default, out int exitCode, out string stdOut, out string stdErr)
 					.ReturnsForAnyArgs(args =>
 					{
-						// Setup a fake index.htm file, so that the code which verifies it was created won't report failure
-						// Since this file is in a temporary folder, if the caller disposes of the Harvester, it should dispose (delete) this too
-						var fakeIndexFile = File.Create(Path.Combine(harvester.GetBloomDigitalArtifactsPath(), "index.htm"));
-						fakeIndexFile.Close();
-
 						args[2] = 0; // exit code
 						return true;
 					});
 			}
 
-			harvester.BloomCli = bloomCli ?? Substitute.For<IBloomCliInvoker>();
+			harvester.BloomCli = bloomCli;
 			harvester.ParseClient = parseClient ?? Substitute.For<IParseClient>();
 			harvester.Transfer = transferClient ?? Substitute.For<IBookTransfer>();
 			harvester._s3UploadClient = s3UploadClient ?? Substitute.For<IS3Client>();
+
+			if (fileIO == null)
+			{
+				fileIO = Substitute.For<IFileIO>();
+
+				// Pretend there's an index.htm file, so that the code which verifies it was created won't fail us
+				var indexPath = Path.Combine(Path.GetTempPath(), harvester.GetBloomDigitalArtifactsPath(), "index.htm");
+				fileIO.Configure().Exists(indexPath).Returns(true);
+			}
+			harvester._fileIO = fileIO;
 
 			harvester.Configure().GetAnalyzer(default).ReturnsForAnyArgs(bookAnalyzer ?? Substitute.For<IBookAnalyzer>());
 
@@ -542,7 +545,6 @@ namespace BloomHarvesterTests
 
 			using (var harvester = GetSubstituteHarvester(options))
 			{
-				// Setup a fake index.htm file, so that the code which verifies it was created won't fail us
 				// Test setup
 				string baseUrl = "https://s3.amazonaws.com/FakeBucket/fakeUploader%40gmail.com%2fFakeGuid%2fFakeTitle%2f";
 				var bookModel = new BookModel(baseUrl: baseUrl);

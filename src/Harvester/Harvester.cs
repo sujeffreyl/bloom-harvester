@@ -587,7 +587,7 @@ namespace BloomHarvester
 		{
 			Debug.Assert(book != null, "ShouldProcessBook(): Book was null");
 
-			// Note: Beware, IsInCirculation can also be null, and we DO want to process books where it is true
+			// Note: Beware, IsInCirculation can also be null, and we DO want to process books where isInCirculation==null
 			if (book.IsInCirculation == false)
 			{
 				if (harvestMode == HarvestMode.ForceAll)

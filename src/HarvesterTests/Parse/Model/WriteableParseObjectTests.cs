@@ -1,4 +1,4 @@
-using BloomHarvester.Parse;
+﻿using BloomHarvester.Parse;
 using BloomHarvester.Parse.Model;
 using Newtonsoft.Json;
 using NSubstitute;
@@ -11,6 +11,8 @@ namespace BloomHarvesterTests.Parse.Model
 {
 	class WriteableParseObjectTests
 	{
+		#region FlushUpdateToDatabase()
+		[Test]
 		public void FlushUpdateToDatabase_NoUpdates_NothingFlushed()
 		{
 			// Setup
@@ -24,6 +26,23 @@ namespace BloomHarvesterTests.Parse.Model
 			// Verification
 			mockParseClient.DidNotReceiveWithAnyArgs().UpdateObject(default, default, default);
 		}
+
+		[Test]
+		public void FlushUpdateToDatabase_NoNormalUpdatesButYesManualForceUpdate_FlushAttempted()
+		{
+			// Setup
+			var obj = new CustomParseClass() { ObjectId = "id1" };
+			obj.MarkAsDatabaseVersion();
+			obj.ForceUpdateMembers.Add("_myWriteableField1");
+			var mockParseClient = Substitute.For<IParseClient>();
+
+			// Test
+			obj.FlushUpdateToDatabase(mockParseClient);
+
+			// Verification
+			mockParseClient.Received(1).UpdateObject("customParseClass", "id1", "{\"_myWriteableField1\":null}");
+		}
+		#endregion
 
 		[Test]
 		public void WriteableParseObject_GetPendingUpdates_ModifyAWriteableProperty_ItemAdded()

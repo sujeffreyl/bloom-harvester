@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -17,6 +17,8 @@ namespace BloomHarvester.Parse.Model
 		/// Stores a copy of the object which matches the state of the row in the database
 		/// </summary>
 		private WriteableParseObject DatabaseVersion { get; set; }
+
+		public HashSet<string> ForceUpdateMembers { get; set; } = new HashSet<string>();
 
 		/// <summary>
 		/// Create a deep copy of the current object
@@ -54,7 +56,7 @@ namespace BloomHarvester.Parse.Model
 			// Maybe the best thing to do is to re-read the row, check if it's the same as our current one, and abort the processing if we don't have the right version?
 
 			var pendingUpdates = this.GetPendingUpdates();
-			if (!pendingUpdates._updatedFieldValues.Any())
+			if (!pendingUpdates._updatedFieldValues.Any() && !ForceUpdateMembers.Any())
 			{
 				return;
 			}
@@ -97,31 +99,8 @@ namespace BloomHarvester.Parse.Model
 			// to see if its value has been modified since the last time we read/wrote to the database
 			foreach (var memberInfo in fieldsAndProperties)
 			{
-				object oldValue;
-				object newValue;
-
-				if (memberInfo is FieldInfo)
-				{
-					var fieldInfo = (FieldInfo)memberInfo;
-					oldValue = fieldInfo.GetValue(this.DatabaseVersion);
-					newValue = fieldInfo.GetValue(this);
-				}
-				else
-				{
-					// We know that everything here is supposed to be either a FieldInfo or PropertyInfo,
-					// so if it's not FieldInfo, it should be a propertyInfo
-					var propertyInfo = (PropertyInfo)memberInfo;
-
-					if (this.DatabaseVersion == null)
-						oldValue = null;
-					else
-						oldValue = propertyInfo.GetValue(this.DatabaseVersion);
-
-					newValue = propertyInfo.GetValue(this);
-				}
-
 				// Record an update if the value has been modified
-				if (!AreObjectsEqual(oldValue, newValue))
+				if (ShouldMemberBeUpdated(memberInfo, out object newValue))
 				{
 					string propertyName = GetMemberJsonName(memberInfo);
 					pendingUpdates.UpdateFieldWithObject(propertyName, newValue);
@@ -131,6 +110,44 @@ namespace BloomHarvester.Parse.Model
 			return pendingUpdates;
 		}
 
+		/// <summary>
+		/// Returns true if the member has pending updates that the database should be updated with
+		/// This may either be because the DB version and the current version are not equal,
+		/// or because it was manually marked as requiring update via ForceUpdateMembers
+		/// </summary>
+		/// <param name="memberInfo">The member (field or property) to check</param>
+		/// <param name="newValue">If the function returns true, will be set to the value to send to the DB. If return is false, will be null.</param>
+		private bool ShouldMemberBeUpdated(MemberInfo memberInfo, out object newValue)
+		{
+			newValue = null;
+			if (this.ForceUpdateMembers.Contains(memberInfo.Name))
+				return true;
+
+			object oldValue;
+
+			if (memberInfo is FieldInfo)
+			{
+				var fieldInfo = (FieldInfo)memberInfo;
+				oldValue = fieldInfo.GetValue(this.DatabaseVersion);
+				newValue = fieldInfo.GetValue(this);
+			}
+			else
+			{
+				// We know that everything here is supposed to be either a FieldInfo or PropertyInfo,
+				// so if it's not FieldInfo, it should be a propertyInfo
+				var propertyInfo = (PropertyInfo)memberInfo;
+
+				if (this.DatabaseVersion == null)
+					oldValue = null;
+				else
+					oldValue = propertyInfo.GetValue(this.DatabaseVersion);
+
+				newValue = propertyInfo.GetValue(this);
+			}
+
+			bool isUpdatedRequired = !AreObjectsEqual(oldValue, newValue);
+			return isUpdatedRequired;
+		}
 
 		/// <summary>
 		/// Checks if two objects are the same (by comparing their JSON). Handles nulls, arrays, lists, and dynamic objects in addition to normal scalars.

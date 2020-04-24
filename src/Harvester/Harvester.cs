@@ -869,6 +869,12 @@ namespace BloomHarvester
 			var missingFonts = new List<string>();
 			foreach (var bookFontName in bookFontNames)
 			{
+				if (bookFontName == "serif" || bookFontName == "sans-serif" || bookFontName == "monospace")
+				{
+					// These are fallback families. We don't need to verify the existence of these fonts.
+					// The browser or epub reader will automatically supply a fallback font for them.
+					continue;
+				}
 				if (!String.IsNullOrEmpty(bookFontName) && !computerFontNames.Contains(bookFontName))
 				{
 					missingFonts.Add(bookFontName);

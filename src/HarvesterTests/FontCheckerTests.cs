@@ -16,7 +16,32 @@ namespace BloomHarvesterTests
 
 			List<string> missingFontsResult = FontChecker.GetMissingFonts(fontNamesUsedInBook);
 
-			Assert.AreEqual(0, missingFontsResult.Count, "No missing fonts were expected.");
+			Assert.That(missingFontsResult.Count, Is.EqualTo(0), "No missing fonts were expected.");
+		}
+
+		[Test]
+		public void GetMissingFonts_BookIsMissingFont_MarkedAsMissing()
+		{
+			string fontName = "qwertuiopasdfghjk";	// a gibberish font name
+			IEnumerable<string> fontNamesUsedInBook = new string[] { fontName };
+
+			List<string> missingFontsResult = FontChecker.GetMissingFonts(fontNamesUsedInBook);
+
+			Assert.That(missingFontsResult.Count, Is.EqualTo(1));
+			Assert.That(missingFontsResult.First(), Is.EqualTo(fontName));
+		}
+
+		[TestCase("serif")]
+		[TestCase("sans-serif")]
+		[TestCase("monospace")]
+		public void GetMissingFonts_BookContainsFontFamily_NotMarkedAsMissing(string fontFamily)
+		{
+			// Assumes that the fontFamily is NOT the name of a real font on the machine running the test
+			IEnumerable<string> fontNamesUsedInBook = new string[] { fontFamily };
+
+			List<string> missingFontsResult = FontChecker.GetMissingFonts(fontNamesUsedInBook);
+
+			Assert.That(missingFontsResult.Count, Is.EqualTo(0), "No error should be reported if the only missing font is font family");
 		}
 	}
 }

@@ -47,6 +47,7 @@ namespace BloomHarvester
 		private readonly IBookTransfer _transfer;
 		protected readonly IIssueReporter _issueReporter = YouTrackIssueConnector.Instance;
 		protected readonly IBloomCliInvoker _bloomCli;
+		private readonly IFontChecker _fontChecker;
 		protected readonly IMonitorLogger _logger;
 		protected readonly IFileIO _fileIO;
 
@@ -70,10 +71,12 @@ namespace BloomHarvester
 			IParseClient parseClient,
 			IS3Client s3DownloadClient,
 			IS3Client s3uploadClient,
-			IBookTransfer transfer
+			IBookTransfer transfer,
+			IBloomCliInvoker bloomCli,
+			IFontChecker fontChecker
 			) args)
-			:this(options, args.parseDBEnvironment, args.identifier, args.parseClient, args.s3DownloadClient, args.s3uploadClient, args.transfer, args.issueReporter, args.logger,
-				 bloomCliInvoker: new BloomCliInvoker(args.logger),
+			:this(options, args.parseDBEnvironment, args.identifier, args.parseClient, args.s3DownloadClient, args.s3uploadClient, args.transfer,
+				 args.issueReporter, args.logger, args.bloomCli, args.fontChecker,				 
 				 fileIO: new FileIO())
 		{
 		}
@@ -105,6 +108,7 @@ namespace BloomHarvester
 			IIssueReporter issueReporter,
 			IMonitorLogger logger,
 			IBloomCliInvoker bloomCliInvoker,
+			IFontChecker fontChecker,
 			IFileIO fileIO)
 		{
 			// Just copying from parameters
@@ -118,6 +122,7 @@ namespace BloomHarvester
 			_transfer = transfer;
 			_issueReporter = issueReporter;
 			_bloomCli = bloomCliInvoker;
+			_fontChecker = fontChecker;
 			_logger = logger;
 			_fileIO = fileIO;
 
@@ -155,7 +160,9 @@ namespace BloomHarvester
 			IParseClient parseClient,
 			IS3Client s3DownloadClient,
 			IS3Client s3uploadClient,
-			IBookTransfer transfer
+			IBookTransfer transfer,
+			IBloomCliInvoker bloomCli,
+			IFontChecker fontChecker
 		) GetConstructorArguments(HarvesterOptions options)
 		{
 			// Safer to get this issueReporter stuff out of the way as first, in case any construction code generates a YouTrack issue.
@@ -177,7 +184,9 @@ namespace BloomHarvester
 				bloomS3Client: s3DownloadClient,
 				htmlThumbnailer: null);
 
-			return (issueReporter, parseDBEnvironment, identifier, logger, parseClient, s3DownloadClient, s3UploadClient, transfer);
+			var bloomCli = new BloomCliInvoker(logger);
+			var fontChecker = new FontChecker(kGetFontsTimeoutSecs, bloomCli, logger);
+			return (issueReporter, parseDBEnvironment, identifier, logger, parseClient, s3DownloadClient, s3UploadClient, transfer, bloomCli, fontChecker);
 		}
 
 		/// <summary>
@@ -815,7 +824,7 @@ namespace BloomHarvester
 
 							if (previouslyMissingFontNames.Any())
 							{
-								var stillMissingFontNames = GetMissingFonts(previouslyMissingFontNames);
+								var stillMissingFontNames = FontChecker.GetMissingFonts(previouslyMissingFontNames);
 
 								if (stillMissingFontNames.Any())
 								{
@@ -870,14 +879,12 @@ namespace BloomHarvester
 			return urlWithoutTitle;
 		}
 
-		
-
 		// Returns true if at least one font is missing
-		internal virtual List<LogEntry> CheckForMissingFontErrors(string bookPath, Book book)
+		internal List<LogEntry> CheckForMissingFontErrors(string bookPath, Book book)
 		{
 			var harvestLogEntries = new List<LogEntry>();
 
-			var missingFontsForCurrBook = GetMissingFonts(bookPath, out bool success);
+			var missingFontsForCurrBook = _fontChecker.GetMissingFonts(bookPath, out bool success);
 
 			if (!success)
 			{
@@ -913,92 +920,6 @@ namespace BloomHarvester
 			}
 
 			return harvestLogEntries;
-		}
-
-		/// <summary>
-		/// Gets the names of the fonts referenced in the book but not found on this machine.
-		/// </summary>
-		/// <param name="bookPath">The path to the book folder</param>
-		/// Returns a list of the fonts that the book reference but which are not installed, or null if there was an error
-		internal virtual List<string> GetMissingFonts(string bookPath, out bool success)
-		{
-			var missingFonts = new List<string>();
-
-			using (var reportFile = SIL.IO.TempFile.CreateAndGetPathButDontMakeTheFile())
-			{
-				string bloomArguments = $"getfonts --bookpath \"{bookPath}\" --reportpath \"{reportFile.Path}\"";
-				bool subprocessSuccess = _bloomCli.StartAndWaitForBloomCli(bloomArguments, kGetFontsTimeoutSecs * 1000, out int exitCode, out string stdOut, out string stdError);
-
-				if (!subprocessSuccess || !SIL.IO.RobustFile.Exists(reportFile.Path))
-				{
-					_logger.LogError("Error: Could not determine fonts from book located at " + bookPath);
-					_logger.LogVerbose("Standard output:\n" + stdOut);
-					_logger.LogVerbose("Standard error:\n" + stdError);
-
-					success = false;
-					return missingFonts;
-				}
-
-				var bookFontNames = GetFontsFromReportFile(reportFile.Path);
-				missingFonts = GetMissingFonts(bookFontNames);
-			}
-
-			success = true;
-			return missingFonts;
-		}
-
-		private static List<string> GetMissingFonts(IEnumerable<string> bookFontNames)
-		{			
-			var computerFontNames = GetInstalledFontNames();
-
-			var missingFonts = new List<string>();
-			foreach (var bookFontName in bookFontNames)
-			{
-				if (bookFontName == "serif" || bookFontName == "sans-serif" || bookFontName == "monospace")
-				{
-					// These are fallback families. We don't need to verify the existence of these fonts.
-					// The browser or epub reader will automatically supply a fallback font for them.
-					continue;
-				}
-				if (!String.IsNullOrEmpty(bookFontName) && !computerFontNames.Contains(bookFontName))
-				{
-					missingFonts.Add(bookFontName);
-				}
-			}
-
-			return missingFonts;
-		}
-
-		/// <summary>
-		/// Gets the fonts referenced by a book baesd on a "getfonts" report file. 
-		/// </summary>
-		/// <param name="filePath">The path to the report file generated from Bloom's "getfonts" CLI command. Each line of the file should correspond to 1 font name.</param>
-		/// <returns>A list of strings, one for each font referenced by the book.</returns>
-		private static List<string> GetFontsFromReportFile(string filePath)
-		{
-			// Precondition: Caller should guarantee that filePath exists
-			var referencedFonts = new List<string>();
-
-			string[] lines = File.ReadAllLines(filePath);   // Not expecting many lines in this file
-
-			if (lines != null)
-			{
-				foreach (var fontName in lines)
-				{
-					referencedFonts.Add(fontName);
-				}
-			}
-
-			return referencedFonts;
-		}
-
-		// Returns the names of each of the installed font families as a set of strings
-		private static HashSet<string> GetInstalledFontNames()
-		{
-			var installedFontCollection = new System.Drawing.Text.InstalledFontCollection();
-
-			var fontFamilyDict = new HashSet<string>(installedFontCollection.Families.Select(x => x.Name), StringComparer.OrdinalIgnoreCase);
-			return fontFamilyDict;
 		}
 
 		private bool CreateArtifacts(string downloadUrl, string downloadBookDir, string collectionFilePath, Book book, List<LogEntry> harvestLogEntries)

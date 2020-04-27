@@ -25,20 +25,11 @@ namespace BloomHarvester
 		private const int kGetFontsTimeoutSecs = 20;
 		private const bool kEnableLoggingSkippedBooks = false;
 
-		private int _delayAfterEmptyRunSecs = 300;
-		protected IMonitorLogger _logger = new ConsoleLogger();
-		internal IIssueReporter _issueReporter = YouTrackIssueConnector.Instance;
-		internal IParseClient ParseClient { get; set; }
+
+		protected HarvesterOptions _options;	// Keep a copy of the options passed in
 		private EnvironmentSetting _parseDBEnvironment;
-		internal IBookTransfer Transfer { get; set; }
-		protected string _downloadBucketName;
-		protected string _uploadBucketName;
-		protected HarvesterS3Client _bloomS3Client;
-		internal IS3Client _s3UploadClient;  // Note that we upload books to a different bucket than we download them from, so we have a separate client.
-		private DateTime _initTime;
-		internal IBloomCliInvoker BloomCli { get; set; }
-		internal IFileIO _fileIO = new FileIO();
-		protected HarvesterOptions _options;
+		private int _delayAfterEmptyRunSecs = 300;
+		private DateTime _initTime;	// Used to provide a unique folder name for each Harvester instance
 		private HashSet<string> _cumulativeFailedBookIdSet = new HashSet<string>();
 		private HashSet<string> _missingFonts = new HashSet<string>();
 		internal Version Version;
@@ -49,14 +40,89 @@ namespace BloomHarvester
 		static ConsoleEventDelegate consoleExitHandler;
 		private delegate bool ConsoleEventDelegate(int eventType);
 
+		// Dependencies injected for unit testing
+		protected readonly IParseClient _parseClient;
+		protected readonly IS3Client _bloomS3Client;
+		protected readonly IS3Client _s3UploadClient;  // Note that we upload books to a different bucket than we download them from, so we have a separate client.
+		private readonly IBookTransfer _transfer;
+		protected readonly IIssueReporter _issueReporter = YouTrackIssueConnector.Instance;
+		protected readonly IBloomCliInvoker _bloomCli;
+		protected readonly IMonitorLogger _logger;
+		protected readonly IFileIO _fileIO;
+
 		internal bool IsDebug { get; set; }
 		public string Identifier { get; set; }
 
-
+		/// <summary>
+		/// Primary constructor to be called externally
+		/// </summary>
+		/// <param name="options"></param>
 		public Harvester(HarvesterOptions options)
+			: this(options, GetConstructorArguments(options))
 		{
-			_initTime = DateTime.Now;
+		}
+
+		private Harvester(HarvesterOptions options, (
+			IIssueReporter issueReporter,
+			EnvironmentSetting parseDBEnvironment,
+			string identifier,
+			IMonitorLogger logger,
+			IParseClient parseClient,
+			IS3Client s3DownloadClient,
+			IS3Client s3uploadClient,
+			IBookTransfer transfer
+			) args)
+			:this(options, args.parseDBEnvironment, args.identifier, args.parseClient, args.s3DownloadClient, args.s3uploadClient, args.transfer, args.issueReporter, args.logger,
+				 bloomCliInvoker: new BloomCliInvoker(args.logger),
+				 fileIO: new FileIO())
+		{
+		}
+
+		/// <summary>
+		/// This constructor allows the caller to pass in implementations of various components/dependencies
+		/// In particular, this allows unit tests to pass in test doubles for outside components
+		/// so that we don't actually update the database, issue-tracking system, etc.
+		/// </summary>
+		/// <param name="options">The options to control the Harvester settings</param>
+		/// <param name="databaseEnvironment">The database environment</param>
+		/// <param name="identifier">The identifier (name) of this instance</param>
+		/// <param name="parseClient">The database client</param>
+		/// <param name="s3DownloadClient">The client that responsible for downloading books</param>
+		/// <param name="s3UploadClient">The client responsible for uploading harvested artifacts</param>
+		/// <param name="transfer">The transfer client which assists in downloading books</param>
+		/// <param name="issueReporter">The issue tracking system</param>
+		/// <param name="logger">The component that logs the output to console, Azure monitor, etc</param>
+		/// <param name="bloomCliInvoker">Handles invoking the Bloom command line</param>
+		/// <param name="fileIO">Handles File input/output</param>
+		internal Harvester(
+			HarvesterOptions options,
+			EnvironmentSetting databaseEnvironment,
+			string identifier,
+			IParseClient parseClient,
+			IS3Client s3DownloadClient,
+			IS3Client s3UploadClient,
+			IBookTransfer transfer,
+			IIssueReporter issueReporter,
+			IMonitorLogger logger,
+			IBloomCliInvoker bloomCliInvoker,
+			IFileIO fileIO)
+		{
+			// Just copying from parameters
 			_options = options;
+			_parseDBEnvironment = databaseEnvironment;
+			this.Identifier = identifier;
+			// Continue copying dependencies injected for unit testing purposes			
+			_parseClient = parseClient;
+			_bloomS3Client = s3DownloadClient;
+			_s3UploadClient = s3UploadClient;
+			_transfer = transfer;
+			_issueReporter = issueReporter;
+			_bloomCli = bloomCliInvoker;
+			_logger = logger;
+			_fileIO = fileIO;
+
+			// Additional constructor setup
+			_initTime = DateTime.Now;
 
 			_issueReporter.Disabled = options.SuppressErrors;
 
@@ -68,60 +134,79 @@ namespace BloomHarvester
 				_delayAfterEmptyRunSecs = options.LoopWaitSeconds;
 			}
 
-			_parseDBEnvironment = EnvironmentUtils.GetEnvOrFallback(options.ParseDBEnvironment, options.Environment);
-
-			// Note: For maximum safety, only one Harvester should be running per user on a machine
-			// If two harvesters attempt to process different books at the same time...
-			// 1) The temp folders they make currently will conflict, but that problem can be easily solved.
-			// 2) The bigger problem is that the underlying Bloom dependencies sometimes encounter problems from trying to run 2 different Bloom processes (e.g. fileserver errors)
-			//
-			// This isn't to say that you can't try to run 2 Harvesters with the same user
-			// It will only create errors if they both try to process books at exactly the right timings...
-			// and in many cases, the Harvester spends most of its time just waiting.
-			// But we can't guarantee it'll be error-free, especially if both are actively processing books
-			this.Identifier = $"{Environment.MachineName}-{_parseDBEnvironment.ToString()}";
-
-			if (!options.SuppressLogs)
-			{
-				EnvironmentSetting azureMonitorEnvironment = EnvironmentUtils.GetEnvOrFallback(options.LogEnvironment, options.Environment);
-				_logger = new AzureMonitorLogger(azureMonitorEnvironment, this.Identifier);
-			}
-
-			// Setup Parse Client and S3 Clients
-			this.ParseClient = new ParseClient(_parseDBEnvironment, _logger);
-
-			switch (_parseDBEnvironment)
-			{
-				case EnvironmentSetting.Prod:
-					_downloadBucketName = BloomS3Client.ProductionBucketName;
-					_uploadBucketName = HarvesterS3Client.HarvesterProductionBucketName;
-					break;
-				case EnvironmentSetting.Test:
-					_downloadBucketName = BloomS3Client.UnitTestBucketName;
-					_uploadBucketName = HarvesterS3Client.HarvesterUnitTestBucketName;
-					break;
-				case EnvironmentSetting.Dev:
-				case EnvironmentSetting.Local:
-				default:
-					_downloadBucketName = BloomS3Client.SandboxBucketName;
-					_uploadBucketName = HarvesterS3Client.HarvesterSandboxBucketName;
-					break;
-			}
-			_bloomS3Client = new HarvesterS3Client(_downloadBucketName, _parseDBEnvironment, true);
-			Transfer = new HarvesterBookTransfer((BloomParseClient)this.ParseClient,
-				bloomS3Client: _bloomS3Client,
-				htmlThumbnailer: null);
-
-			_s3UploadClient = new HarvesterS3Client(_uploadBucketName, _parseDBEnvironment, false);
-
-			// More setup
 			AlertManager.Instance.Logger = _logger;
-
-			BloomCli = new BloomCliInvoker(_logger);
 
 			// Setup a handler that is called when the console is closed
 			consoleExitHandler = new ConsoleEventDelegate(ConsoleEventCallback);
 			SetConsoleCtrlHandler(consoleExitHandler, add: true);
+		}
+		/// <summary>
+		/// Do a lot of complex initailization
+		/// A lot of this code is iterative statements that depends on previous statements...
+		/// writing it this way allows us to avoid numerous layers of constructor chaining that slowly add parameters one at a time
+		/// </summary>
+		/// <param name="options"></param>
+		/// <returns>A tuple containing all the construction-related variables</returns>
+		private static (
+			IIssueReporter issueReporter,
+			EnvironmentSetting parseDBEnvironment,
+			string identifier,
+			IMonitorLogger logger,
+			IParseClient parseClient,
+			IS3Client s3DownloadClient,
+			IS3Client s3uploadClient,
+			IBookTransfer transfer
+		) GetConstructorArguments(HarvesterOptions options)
+		{
+			// Safer to get this issueReporter stuff out of the way as first, in case any construction code generates a YouTrack issue.
+			var issueReporter = YouTrackIssueConnector.Instance;
+			issueReporter.Disabled = options.SuppressErrors;
+
+			var parseDBEnvironment = EnvironmentUtils.GetEnvOrFallback(options.ParseDBEnvironment, options.Environment);
+			var logEnvironment = EnvironmentUtils.GetEnvOrFallback(options.LogEnvironment, options.Environment);
+
+			string identifier = $"{Environment.MachineName}-{parseDBEnvironment.ToString()}";
+			IMonitorLogger logger = options.SuppressLogs ? new ConsoleLogger() : (IMonitorLogger)new AzureMonitorLogger(logEnvironment, identifier);
+
+			var parseClient = new ParseClient(parseDBEnvironment, logger);
+			(string downloadBucketName, string uploadBucketName) = GetS3BucketNames(parseDBEnvironment);
+			var s3DownloadClient = new HarvesterS3Client(downloadBucketName, parseDBEnvironment, true);
+			var s3UploadClient = new HarvesterS3Client(uploadBucketName, parseDBEnvironment, false);
+
+			var transfer = new HarvesterBookTransfer(parseClient,
+				bloomS3Client: s3DownloadClient,
+				htmlThumbnailer: null);
+
+			return (issueReporter, parseDBEnvironment, identifier, logger, parseClient, s3DownloadClient, s3UploadClient, transfer);
+		}
+
+		/// <summary>
+		/// Based on the Parse environment, determines the Amazon S3 bucket names to download and upload from.
+		/// </summary>
+		/// <returns>A tuple of 2 strings. The first string is the bucket name from which to download books. The 2nd is the bucket name to upload harvested artifacts</returns>
+		protected static (string downloadBucketName, string uploadBucketName) GetS3BucketNames(EnvironmentSetting parseDBEnvironment)
+		{
+			string downloadBucketName, uploadBucketName;
+
+			switch (parseDBEnvironment)
+			{
+				case EnvironmentSetting.Prod:
+					downloadBucketName = BloomS3Client.ProductionBucketName;
+					uploadBucketName = HarvesterS3Client.HarvesterProductionBucketName;
+					break;
+				case EnvironmentSetting.Test:
+					downloadBucketName = BloomS3Client.UnitTestBucketName;
+					uploadBucketName = HarvesterS3Client.HarvesterUnitTestBucketName;
+					break;
+				case EnvironmentSetting.Dev:
+				case EnvironmentSetting.Local:
+				default:
+					downloadBucketName = BloomS3Client.SandboxBucketName;
+					uploadBucketName = HarvesterS3Client.HarvesterSandboxBucketName;
+					break;
+			}
+
+			return (downloadBucketName, uploadBucketName);
 		}
 
 		public void Dispose()
@@ -158,7 +243,7 @@ namespace BloomHarvester
 				{
 					var updateOp = BookModel.GetNewBookUpdateOperation();
 					updateOp.UpdateFieldWithString(BookModel.kHarvestStateField, Parse.Model.HarvestState.Aborted.ToString());
-					this.ParseClient.UpdateObject(BookModel.GetStaticParseClassName(), _currentBookId, updateOp.ToJson());
+					_parseClient.UpdateObject(BookModel.GetStaticParseClassName(), _currentBookId, updateOp.ToJson());
 					return true;
 				}
 			}
@@ -203,7 +288,7 @@ namespace BloomHarvester
 					var methodStopwatch = new Stopwatch();
 					methodStopwatch.Start();
 
-					IEnumerable<BookModel> bookList = this.ParseClient.GetBooks(out bool didExitPrematurely, combinedWhereJson);
+					IEnumerable<BookModel> bookList = _parseClient.GetBooks(out bool didExitPrematurely, combinedWhereJson);
 
 					if (didExitPrematurely && !_options.Loop)
 					{
@@ -439,7 +524,7 @@ namespace BloomHarvester
 				{
 					_currentBookId = book.Model.ObjectId;					
 				}
-				book.Model.FlushUpdateToDatabase(this.ParseClient, _options.ReadOnly);
+				book.Model.FlushUpdateToDatabase(_parseClient, _options.ReadOnly);
 
 				// Download the book
 				_logger.TrackEvent("Download Book");
@@ -461,7 +546,7 @@ namespace BloomHarvester
 				}
 				else
 				{
-					downloadBookDir = this.Transfer.HandleDownloadWithoutProgress(urlWithoutTitle, downloadRootDir);
+					downloadBookDir = _transfer.HandleDownloadWithoutProgress(urlWithoutTitle, downloadRootDir);
 				}
 
 				// Process the book
@@ -503,7 +588,7 @@ namespace BloomHarvester
 
 				// Write the updates
 				_currentBookId = null;
-				book.Model.FlushUpdateToDatabase(this.ParseClient, _options.ReadOnly);
+				book.Model.FlushUpdateToDatabase(_parseClient, _options.ReadOnly);
 
 				if (!_options.SkipDownload)
 				{
@@ -536,7 +621,7 @@ namespace BloomHarvester
 						}
 						var logEntry = new LogEntry(LogLevel.Error, LogType.ProcessBookError, errorMessage);
 						book.Model.HarvestLogEntries.Add(logEntry.ToString());
-						book.Model.FlushUpdateToDatabase(this.ParseClient);
+						book.Model.FlushUpdateToDatabase(_parseClient);
 					}
 					catch (Exception)
 					{
@@ -842,7 +927,7 @@ namespace BloomHarvester
 			using (var reportFile = SIL.IO.TempFile.CreateAndGetPathButDontMakeTheFile())
 			{
 				string bloomArguments = $"getfonts --bookpath \"{bookPath}\" --reportpath \"{reportFile.Path}\"";
-				bool subprocessSuccess = BloomCli.StartAndWaitForBloomCli(bloomArguments, kGetFontsTimeoutSecs * 1000, out int exitCode, out string stdOut, out string stdError);
+				bool subprocessSuccess = _bloomCli.StartAndWaitForBloomCli(bloomArguments, kGetFontsTimeoutSecs * 1000, out int exitCode, out string stdOut, out string stdError);
 
 				if (!subprocessSuccess || !SIL.IO.RobustFile.Exists(reportFile.Path))
 				{
@@ -958,7 +1043,7 @@ namespace BloomHarvester
 					// Start a Bloom command line in a separate process
 					var bloomCliStopwatch = new Stopwatch();
 					bloomCliStopwatch.Start();
-					bool exitedNormally = BloomCli.StartAndWaitForBloomCli(bloomArguments, kCreateArtifactsTimeoutSecs * 1000, out int bloomExitCode, out string bloomStdOut, out string bloomStdErr);
+					bool exitedNormally = _bloomCli.StartAndWaitForBloomCli(bloomArguments, kCreateArtifactsTimeoutSecs * 1000, out int bloomExitCode, out string bloomStdOut, out string bloomStdErr);
 					bloomCliStopwatch.Stop();
 
 					string errorDescription = "";

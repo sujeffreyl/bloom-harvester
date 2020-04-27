@@ -24,6 +24,27 @@ namespace BloomHarvesterTests
 
 		private IMonitorLogger _logger = new NullLogger();
 
+		// Caches the fake tests objects passed in to the Harvester constructor
+		private IParseClient _fakeParseClient;
+		private IS3Client _fakeBloomS3Client;
+		private IS3Client _fakeS3UploadClient;
+		private IBookTransfer _fakeTransfer;
+		private IIssueReporter _fakeIssueReporter;
+		private IBloomCliInvoker _fakeBloomCli;
+		private IFileIO _fakeFileIO;
+
+		[SetUp]
+		public void ClearCachedValues()
+		{
+			_fakeParseClient= null;
+			_fakeBloomS3Client = null;
+			_fakeS3UploadClient = null;
+			_fakeTransfer = null;
+			_fakeIssueReporter = null;
+			_fakeBloomCli = null;
+			_fakeFileIO = null;
+		}
+
 		// Helper methods
 		private static bool RunShouldProcessBook(BookModel book, string currentVersionStr, HarvestMode mode = HarvestMode.Default)
 		{
@@ -339,21 +360,21 @@ namespace BloomHarvesterTests
 		#region ProcessOneBook() tests
 		private HarvesterOptions GetHarvesterOptionsForProcessOneBookTests() => new HarvesterOptions() { Mode = HarvestMode.All, SuppressLogs = true, Environment = EnvironmentSetting.Local, ParseDBEnvironment = EnvironmentSetting.Local };
 
-		private Harvester GetSubstituteHarvester(HarvesterOptions options, IBloomCliInvoker bloomCli = null, IParseClient parseClient = null, IBookTransfer transferClient = null, IBookAnalyzer bookAnalyzer = null, IS3Client s3UploadClient = null, IFileIO fileIO = null, bool ignoreFonts = true)
+		private Harvester GetSubstituteHarvester(HarvesterOptions options, IBloomCliInvoker bloomCli = null, IParseClient parseClient = null, IBookTransfer transferClient = null, IS3Client s3DownloadClient = null, IS3Client s3UploadClient = null, IBookAnalyzer bookAnalyzer = null, IFileIO fileIO = null, bool ignoreFonts = true)
 		{
 			options.SuppressLogs = true;	// Probably not meaningful for tests
 
-			var harvester = Substitute.ForPartsOf<Harvester>(options);
-			harvester.Identifier = "UnitTestHarvester";
+			string identifier = "UnitTestHarvester";
 
 			// We don't want the unit tests to actually create any YouTrack issues
-			harvester._issueReporter = Substitute.For<IIssueReporter>();
+			_fakeIssueReporter = Substitute.For<IIssueReporter>();
 
-			if (bloomCli == null)
+			_fakeBloomCli = bloomCli;
+			if (_fakeBloomCli == null)
 			{
 				// Setup a mock which returns the parameters for the normal case
-				bloomCli = Substitute.For<IBloomCliInvoker>();
-				bloomCli.Configure().StartAndWaitForBloomCli(default, default, out int exitCode, out string stdOut, out string stdErr)
+				_fakeBloomCli = Substitute.For<IBloomCliInvoker>();
+				_fakeBloomCli.Configure().StartAndWaitForBloomCli(default, default, out int exitCode, out string stdOut, out string stdErr)
 					.ReturnsForAnyArgs(args =>
 					{
 						args[2] = 0; // exit code
@@ -361,25 +382,32 @@ namespace BloomHarvesterTests
 					});
 			}
 
-			harvester.BloomCli = bloomCli;
-			harvester.ParseClient = parseClient ?? Substitute.For<IParseClient>();
-			harvester.Transfer = transferClient ?? Substitute.For<IBookTransfer>();
-			harvester._s3UploadClient = s3UploadClient ?? Substitute.For<IS3Client>();
+			_fakeParseClient = parseClient ?? Substitute.For<IParseClient>();
+			_fakeBloomS3Client = s3DownloadClient ?? Substitute.For<IS3Client>();
+			_fakeS3UploadClient = s3UploadClient ?? Substitute.For<IS3Client>();
+			_fakeTransfer = transferClient ?? Substitute.For<IBookTransfer>();
 
-			if (fileIO == null)
-			{
-				fileIO = Substitute.For<IFileIO>();
+			_fakeFileIO = fileIO ?? Substitute.For<IFileIO>();
 
-				// Pretend there's an index.htm file, so that the code which verifies it was created won't fail us
-				var indexPath = Path.Combine(Path.GetTempPath(), harvester.GetBloomDigitalArtifactsPath(), "index.htm");
-				fileIO.Configure().Exists(indexPath).Returns(true);
-			}
-			harvester._fileIO = fileIO;
+			var harvester = Substitute.ForPartsOf<Harvester>(options, EnvironmentSetting.Test, identifier, _fakeParseClient, _fakeBloomS3Client, _fakeS3UploadClient, _fakeTransfer, _fakeIssueReporter, _logger, _fakeBloomCli, _fakeFileIO);
 
 			harvester.Configure().GetAnalyzer(default).ReturnsForAnyArgs(bookAnalyzer ?? Substitute.For<IBookAnalyzer>());
 
 			if (ignoreFonts)
 				harvester.Configure().CheckForMissingFontErrors(default, default).ReturnsForAnyArgs(new List<LogEntry>());
+
+			// Only execute this part if the caller didn't manually specify their own fileIO handler.
+			if (fileIO == null)
+			{
+				// This needs to run after the harvester is initialized (because it calls an instance method),
+				// so we need this 2nd phase of initializatino
+				//
+				// Pretend there's an index.htm file, so that the code which verifies it was created won't fail us
+				// It may be pretty commonplace that most unit tests would prefer for this check not to happen, so we'll
+				// take care of it here for all unit tests by default
+				var indexPath = Path.Combine(Path.GetTempPath(), harvester.GetBloomDigitalArtifactsPath(), "index.htm");
+				_fakeFileIO.Configure().Exists(indexPath).Returns(true);
+			}
 
 			return harvester;
 		}
@@ -412,7 +440,7 @@ namespace BloomHarvesterTests
 				Assert.That(book.Model.HarvestState, Is.EqualTo("Failed"), "HarvestState should be failed");
 
 				// Validate that the code did in fact attempt to report an error
-				harvester._issueReporter.ReceivedWithAnyArgs().ReportError(default, default, default, default);
+				_fakeIssueReporter.ReceivedWithAnyArgs().ReportError(default, default, default, default);
 			}
 		}
 
@@ -439,7 +467,7 @@ namespace BloomHarvesterTests
 				Assert.That(book.Model.HarvestState, Is.EqualTo("Failed"), "HarvestState should be failed");
 
 				// Validate that the code did in fact attempt to report an error
-				harvester._issueReporter.ReceivedWithAnyArgs().ReportError(default, default, default, default);
+				_fakeIssueReporter.ReceivedWithAnyArgs().ReportError(default, default, default, default);
 			}
 		}
 
@@ -447,11 +475,16 @@ namespace BloomHarvesterTests
 		public void ProcessOneBook_HarvesterException_ProcessBookErrorRecorded()
 		{
 			var options = GetHarvesterOptionsForProcessOneBookTests();
-			using (var harvester = GetSubstituteHarvester(options, ignoreFonts: true))
+			var parseClient = Substitute.For<IParseClient>();
+			parseClient.Configure().UpdateObject(default, default, default).ReturnsForAnyArgs(args =>
+			{
+				throw new ApplicationException("Simulated exception for unit tests");
+			});
+
+			using (var harvester = GetSubstituteHarvester(options, parseClient: parseClient, ignoreFonts: true))
 			{
 				// Test Setup
 				var book = new Book(new BookModel() { ObjectId = "123" }, _logger);
-				harvester.ParseClient = null;	// Generate a null reference exception
 
 				// System under test				
 				harvester.ProcessOneBook(book);
@@ -463,7 +496,7 @@ namespace BloomHarvesterTests
 				Assert.That(book.Model.HarvestState, Is.EqualTo("Failed"), "HarvestState should be failed");
 
 				// Validate that the code did in fact attempt to report an error
-				harvester._issueReporter.ReceivedWithAnyArgs().ReportException(default, default, default, default);
+				_fakeIssueReporter.ReceivedWithAnyArgs().ReportException(default, default, default, default);
 			}
 		}
 
@@ -494,7 +527,7 @@ namespace BloomHarvesterTests
 				Assert.That(book.Model.HarvestState, Is.EqualTo("Failed"), "HarvestState should be failed");
 
 				// Validate that the code did in fact attempt to report an error
-				harvester._issueReporter.ReceivedWithAnyArgs().ReportError(default, default, default, default);
+				_fakeIssueReporter.ReceivedWithAnyArgs().ReportError(default, default, default, default);
 			}
 		}
 
@@ -528,7 +561,7 @@ namespace BloomHarvesterTests
 				Assert.That(book.Model.HarvestState, Is.EqualTo("Failed"), "HarvestState should be failed");
 
 				// Validate that the code did in fact attempt to report an error
-				harvester._issueReporter.Received().ReportMissingFont("madeUpFontName", "UnitTestHarvester", EnvironmentSetting.Local, book.Model);
+				_fakeIssueReporter.Received().ReportMissingFont("madeUpFontName", "UnitTestHarvester", EnvironmentSetting.Test, book.Model);
 			}
 		}
 
@@ -554,10 +587,10 @@ namespace BloomHarvesterTests
 				harvester.ProcessOneBook(book);
 
 				// Validate
-				harvester._s3UploadClient.DidNotReceive().DeleteDirectory("fakeUploader@gmail.com/FakeGuid");
-				harvester._s3UploadClient.Received(1).DeleteDirectory("fakeUploader@gmail.com/FakeGuid/bloomdigital");
-				harvester._s3UploadClient.Received(1).DeleteDirectory("fakeUploader@gmail.com/FakeGuid/epub");
-				harvester._s3UploadClient.Received(1).DeleteDirectory("fakeUploader@gmail.com/FakeGuid/thumbnails");
+				_fakeS3UploadClient.DidNotReceive().DeleteDirectory("fakeUploader@gmail.com/FakeGuid");
+				_fakeS3UploadClient.Received(1).DeleteDirectory("fakeUploader@gmail.com/FakeGuid/bloomdigital");
+				_fakeS3UploadClient.Received(1).DeleteDirectory("fakeUploader@gmail.com/FakeGuid/epub");
+				_fakeS3UploadClient.Received(1).DeleteDirectory("fakeUploader@gmail.com/FakeGuid/thumbnails");
 			}
 		}
 
@@ -584,7 +617,7 @@ namespace BloomHarvesterTests
 				harvester.ProcessOneBook(book);
 
 				// Validate
-				harvester._s3UploadClient.DidNotReceiveWithAnyArgs().DeleteDirectory(default);
+				_fakeS3UploadClient.DidNotReceiveWithAnyArgs().DeleteDirectory(default);
 			}
 		}
 		#endregion

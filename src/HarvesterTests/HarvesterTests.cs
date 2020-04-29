@@ -9,6 +9,7 @@ using BloomHarvester.Logger;
 using BloomHarvester.Parse;
 using BloomHarvester.Parse.Model;
 using BloomHarvester.WebLibraryIntegration;
+using BloomHarvesterTests.Parse.Model;
 using VSUnitTesting = Microsoft.VisualStudio.TestTools.UnitTesting;
 using NSubstitute;
 using NSubstitute.Extensions;
@@ -22,16 +23,16 @@ namespace BloomHarvesterTests
 		private const bool PROCESS = true;
 		private const bool SKIP = false;
 
-		private IMonitorLogger _logger = new NullLogger();
-
 		// Caches the fake tests objects passed in to the Harvester constructor
 		private IParseClient _fakeParseClient;
 		private IS3Client _fakeBloomS3Client;
 		private IS3Client _fakeS3UploadClient;
 		private IBookTransfer _fakeTransfer;
 		private IIssueReporter _fakeIssueReporter;
+		private IMonitorLogger _logger;
 		private IBloomCliInvoker _fakeBloomCli;
 		private IFontChecker _fakeFontChecker;
+		private IDiskSpaceManager _fakeDiskSpaceManager;
 		private IFileIO _fakeFileIO;
 
 		[SetUp]
@@ -42,7 +43,9 @@ namespace BloomHarvesterTests
 			_fakeS3UploadClient = null;
 			_fakeTransfer = null;
 			_fakeIssueReporter = null;
+			_logger = Substitute.For<IMonitorLogger>();
 			_fakeBloomCli = null;
+			_fakeDiskSpaceManager = Substitute.For<IDiskSpaceManager>();	// This will basically null-op whenever CleanupIfNeeded is called.
 			_fakeFileIO = null;
 		}
 
@@ -389,7 +392,7 @@ namespace BloomHarvesterTests
 			else
 				_fakeFontChecker = fontChecker;
 
-			var harvester = Substitute.ForPartsOf<Harvester>(options, EnvironmentSetting.Test, identifier, _fakeParseClient, _fakeBloomS3Client, _fakeS3UploadClient, _fakeTransfer, _fakeIssueReporter, _logger, _fakeBloomCli, _fakeFontChecker, _fakeFileIO);
+			var harvester = Substitute.ForPartsOf<Harvester>(options, EnvironmentSetting.Local, identifier, _fakeParseClient, _fakeBloomS3Client, _fakeS3UploadClient, _fakeTransfer, _fakeIssueReporter, _logger, _fakeBloomCli, _fakeFontChecker, _fakeDiskSpaceManager, _fakeFileIO);
 
 			harvester.Configure().GetAnalyzer(default).ReturnsForAnyArgs(bookAnalyzer ?? Substitute.For<IBookAnalyzer>());
 
@@ -425,7 +428,7 @@ namespace BloomHarvesterTests
 			using (var harvester = GetSubstituteHarvester(options, bloomCli: bloomStub))
 			{
 				// Test Setup
-				var book = new Book(new BookModel(), _logger);
+				var book = BookTests.CreateDefaultBook();
 
 				// System under test				
 				harvester.ProcessOneBook(book);
@@ -452,7 +455,7 @@ namespace BloomHarvesterTests
 			using (var harvester = GetSubstituteHarvester(options, bloomCli: bloomStub))
 			{
 				// Test Setup
-				var book = new Book(new BookModel(), _logger);				
+				var book = BookTests.CreateDefaultBook();
 
 				// System under test				
 				harvester.ProcessOneBook(book);
@@ -481,7 +484,7 @@ namespace BloomHarvesterTests
 			using (var harvester = GetSubstituteHarvester(options, parseClient: parseClient))
 			{
 				// Test Setup
-				var book = new Book(new BookModel() { ObjectId = "123" }, _logger);
+				var book = BookTests.CreateDefaultBook();
 
 				// System under test				
 				harvester.ProcessOneBook(book);
@@ -512,7 +515,7 @@ namespace BloomHarvesterTests
 			using (var harvester = GetSubstituteHarvester(options, fontChecker: fakeFontChecker))
 			{
 				// Test Setup
-				var book = new Book(new BookModel() { ObjectId = "123" }, _logger);
+				var book = BookTests.CreateDefaultBook();
 
 				// System under test				
 				harvester.ProcessOneBook(book);
@@ -550,7 +553,7 @@ namespace BloomHarvesterTests
 			using (var harvester = GetSubstituteHarvester(options, fontChecker: fakeFontChecker))
 			{
 				// Test Setup
-				var book = new Book(new BookModel() { ObjectId = "123" }, _logger);
+				var book = BookTests.CreateDefaultBook();
 
 				// System under test				
 				harvester.ProcessOneBook(book);
@@ -565,14 +568,14 @@ namespace BloomHarvesterTests
 				fakeFontChecker.ReceivedWithAnyArgs().GetMissingFonts(default, out _);
 
 				// Validate that the code did in fact attempt to report an error
-				_fakeIssueReporter.Received().ReportMissingFont("madeUpFontName", "UnitTestHarvester", EnvironmentSetting.Test, book.Model);
+				_fakeIssueReporter.Received().ReportMissingFont("madeUpFontName", "UnitTestHarvester", book.Model);
 			}
 		}
 
 		[Test]
 		public void ProcessOneBook_NormalConditions_DirectoriesCleanedBeforeUpload()
 		{
-			// Mock Setup
+			// Setup
 			var options = new HarvesterOptions()
 			{
 				Mode = HarvestMode.Default,
@@ -582,10 +585,7 @@ namespace BloomHarvesterTests
 
 			using (var harvester = GetSubstituteHarvester(options))
 			{
-				// Test setup
-				string baseUrl = "https://s3.amazonaws.com/FakeBucket/fakeUploader%40gmail.com%2fFakeGuid%2fFakeTitle%2f";
-				var bookModel = new BookModel(baseUrl: baseUrl);
-				var book = new Book(bookModel, _logger);
+				var book = BookTests.CreateDefaultBook();
 
 				// System under test				
 				harvester.ProcessOneBook(book);
@@ -613,9 +613,7 @@ namespace BloomHarvesterTests
 
 			using (var harvester = GetSubstituteHarvester(options))
 			{
-				string baseUrl = "https://s3.amazonaws.com/FakeBucket/fakeUploader%40gmail.com%2fFakeGuid%2fFakeTitle%2f";
-				var bookModel = new BookModel(baseUrl: baseUrl);
-				var book = new Book(bookModel, _logger);
+				var book = BookTests.CreateDefaultBook();
 
 				// System under test				
 				harvester.ProcessOneBook(book);
@@ -623,6 +621,173 @@ namespace BloomHarvesterTests
 				// Validate
 				_fakeS3UploadClient.DidNotReceiveWithAnyArgs().DeleteDirectory(default);
 			}
+		}
+
+		[TestCase("2020-05-01", "2020-05-02")]	// could skip download, but it's not on disk
+		[TestCase(null, "2020-04-07")]	// could skip download, but it's not on disk
+		[TestCase("2020-05-01", "2020-04-30")]	// updated - would need to process it anyway
+		[TestCase(null, "2020-04-06")]	// need to process it anyway
+		public void ProcessOneBook_NotOnDisk_Downloaded(string lastUploadedDateStr, string lastHarvestedDateStr)
+		{
+			string titleSuffix = "NotOnDisk_Downloaded";
+			var options = GetHarvesterOptionsForProcessOneBookTests();
+			using (var harvester = GetSubstituteHarvester(options))
+			{
+				// Book Setup
+				var book = CreateBookForCheckDownloadTests(lastUploadedDateStr, lastHarvestedDateStr, titleSuffix);
+
+				// Need to make sure it's not there
+				CleanupForBookDownloadTests(harvester, titleSuffix);
+
+				// System under test				
+				harvester.ProcessOneBook(book);
+
+				// Validate
+				_fakeTransfer.ReceivedWithAnyArgs(1).HandleDownloadWithoutProgress(default, default);
+			}
+		}
+
+		[TestCase("2020-05-01", "2020-04-30")]
+		[TestCase(null, "2020-04-06")]	// lastUploaded only started in Prod on 4-6-2020, so it's technically possible for a book to be re-uploaded as late as this date.
+		[TestCase(null, "2020-04-05")]
+		public void ProcessOneBook_DiskOutOfDate_Downloaded(string lastUploadedDateStr, string lastHarvestedDateStr)
+		{
+			string titleSuffix = "DiskOutOfDate_Downloaded";
+
+			var options = GetHarvesterOptionsForProcessOneBookTests();
+			using (var harvester = GetSubstituteHarvester(options))
+			{
+				// Book Setup
+				var book = CreateBookForCheckDownloadTests(lastUploadedDateStr, lastHarvestedDateStr, titleSuffix);
+
+				// Create a fake book at the location
+				SetupForBookDownloadTests(harvester, titleSuffix);
+
+				// System under test				
+				harvester.ProcessOneBook(book);
+
+				// Validate
+				_fakeTransfer.ReceivedWithAnyArgs(1).HandleDownloadWithoutProgress(default, default);
+				_logger.Received(1).TrackEvent("Download Book");
+
+				// Cleanup
+				CleanupForBookDownloadTests(harvester, titleSuffix);
+			}
+		}
+
+		[TestCase("2020-05-01", "2020-04-30")]
+		[TestCase(null, "2020-04-06")]	// lastUploaded only started in Prod on 4-6-2020, so it's technically possible for a book to be re-uploaded as late as this date.
+		[TestCase(null, "2020-04-05")]
+		public void ProcessOneBook_DiskOutOfDateButSkipDownloadSet_NotDownloaded(string lastUploadedDateStr, string lastHarvestedDateStr)
+		{
+			string titleSuffix = "DiskOutOfDateButSkipDownloadSet_NotDownloaded";
+
+			var options = GetHarvesterOptionsForProcessOneBookTests();
+			options.SkipDownload = true;
+			using (var harvester = GetSubstituteHarvester(options))
+			{
+				// Book Setup
+				var book = CreateBookForCheckDownloadTests(lastUploadedDateStr, lastHarvestedDateStr, titleSuffix);
+				SetupForBookDownloadTests(harvester, titleSuffix);
+
+				// System under test				
+				harvester.ProcessOneBook(book);
+
+				// Validate
+				_fakeTransfer.DidNotReceiveWithAnyArgs().HandleDownloadWithoutProgress(default, default);
+				_logger.DidNotReceive().TrackEvent("Download Book");
+
+				// Cleanup
+				CleanupForBookDownloadTests(harvester, titleSuffix);
+			}
+		}
+
+		[TestCase("2020-05-01", "2020-05-02")]
+		[TestCase(null, "2020-04-07")]
+		[TestCase(null, "2020-04-08")]
+		public void ProcessOneBook_DiskUpToDate_NotDownloaded(string lastUploadedDateStr, string lastHarvestedDateStr)
+		{
+			string titleSuffix = "DiskUpToDate_NotDownloaded";
+
+			var options = GetHarvesterOptionsForProcessOneBookTests();
+			using (var harvester = GetSubstituteHarvester(options))
+			{
+				// Book Setup
+				var book = CreateBookForCheckDownloadTests(lastUploadedDateStr, lastHarvestedDateStr, titleSuffix);
+				SetupForBookDownloadTests(harvester, titleSuffix);
+
+				// System under test				
+				harvester.ProcessOneBook(book);
+
+				// Validate
+				_fakeTransfer.DidNotReceiveWithAnyArgs().HandleDownloadWithoutProgress(default, default);
+				_logger.DidNotReceive().TrackEvent("Download Book");
+
+				// Cleanup
+				CleanupForBookDownloadTests(harvester, titleSuffix);
+			}
+		}
+
+		[TestCase("2020-05-01", "2020-05-02")]
+		[TestCase(null, "2020-04-07")]
+		[TestCase(null, "2020-04-08")]
+		public void ProcessOneBook_DiskUpToDateButForceSet_Downloaded(string lastUploadedDateStr, string lastHarvestedDateStr)
+		{
+			string titleSuffix = "DiskUpToDateButForceSet_NotDownloaded";
+
+			var options = GetHarvesterOptionsForProcessOneBookTests();
+			options.ForceDownload = true;
+
+			using (var harvester = GetSubstituteHarvester(options))
+			{
+				// Book Setup
+				var book = CreateBookForCheckDownloadTests(lastUploadedDateStr, lastHarvestedDateStr, titleSuffix);
+				SetupForBookDownloadTests(harvester, titleSuffix);
+
+				// System under test				
+				harvester.ProcessOneBook(book);
+
+				// Validate
+				_fakeTransfer.ReceivedWithAnyArgs(1).HandleDownloadWithoutProgress(default, default);
+				_logger.Received(1).TrackEvent("Download Book");
+
+				// Cleanup
+				CleanupForBookDownloadTests(harvester, titleSuffix);
+			}
+		}
+
+		/// <param name="titleSuffix">A unique suffix, so that each test will use its own folder</param>
+		private Book CreateBookForCheckDownloadTests(string lastUploadedDateStr, string lastHarvestedDateStr, string titleSuffix, string title = "Test Title w/slash")
+		{
+			ParseDate lastUploadedDate = null;
+			ParseDate lastHarvestedDate = null;
+
+			if (!String.IsNullOrEmpty(lastUploadedDateStr))
+				lastUploadedDate = new ParseDate(DateTime.Parse(lastUploadedDateStr));
+			if (!String.IsNullOrEmpty(lastHarvestedDateStr))
+				lastHarvestedDate = new ParseDate(DateTime.Parse(lastHarvestedDateStr));
+
+			string baseUrl = $"https://s3.amazonaws.com/FakeBucket/fakeUploader%40gmail.com%2fFakeGuid%2fTest+Title+w+Slash+{titleSuffix}%2f";
+			var bookModel = new BookModel(baseUrl, title + titleSuffix, lastUploaded: lastUploadedDate) { HarvestStartedAt = lastHarvestedDate } ;
+			var book = new Book(bookModel, _logger);
+			return book;
+		}
+
+		private void SetupForBookDownloadTests(Harvester harvester, string titleSuffix)
+		{
+			Assert.That(harvester.Identifier, Is.EqualTo("UnitTestHarvester"), "Error in test setup. Aborting to avoid accidentally overwriting any real data");
+			string bookFolderName = $"Test Title w Slash {titleSuffix}";
+			string bookDir = Path.Combine(harvester.GetBookCollectionPath(), bookFolderName);
+			Directory.CreateDirectory(bookDir);
+		}
+
+		private void CleanupForBookDownloadTests(Harvester harvester, string titleSuffix)
+		{
+			Assert.That(harvester.Identifier, Is.EqualTo("UnitTestHarvester"), "Error in test setup. Aborting to avoid accidentally deleting any real data");
+			string bookFolderName = $"Test Title w Slash {titleSuffix}";
+			string bookDir = Path.Combine(harvester.GetBookCollectionPath(), bookFolderName);
+			if (Directory.Exists(bookDir))
+				Directory.Delete(bookDir);
 		}
 		#endregion
 
@@ -632,6 +797,6 @@ namespace BloomHarvesterTests
 			string input = "https://s3.amazonaws.com/BloomLibraryBooks-Sandbox/hattonlists@gmail.com/8cba3b47-2ceb-47fd-9ac7-3172824849e4/How+Snakes+Came+to+Be/";
 			string output = Harvester.RemoveBookTitleFromBaseUrl(input);
 			Assert.AreEqual("https://s3.amazonaws.com/BloomLibraryBooks-Sandbox/hattonlists@gmail.com/8cba3b47-2ceb-47fd-9ac7-3172824849e4", output);
-		}		
+		}
 	}
 }

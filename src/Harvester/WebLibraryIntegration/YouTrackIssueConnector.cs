@@ -13,36 +13,37 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 	internal interface IIssueReporter
 	{
 		bool Disabled { get; set; }
-		void ReportException(Exception exception, string additionalDescription, BookModel bookModel, EnvironmentSetting environment, bool exitImmediately = true);
-		void ReportError(string errorSummary, string errorDescription, string errorDetails, EnvironmentSetting environment, BookModel bookModel = null);
-		void ReportMissingFont(string missingFontName, string harvesterId, EnvironmentSetting environment, BookModel bookModel = null);
+		void ReportException(Exception exception, string additionalDescription, BookModel bookModel, bool exitImmediately = true);
+		void ReportError(string errorSummary, string errorDescription, string errorDetails, BookModel bookModel = null);
+		void ReportMissingFont(string missingFontName, string harvesterId, BookModel bookModel = null);
 	}
 
 	internal class YouTrackIssueConnector : IIssueReporter
 	{
-		private YouTrackIssueConnector()
+		private YouTrackIssueConnector(EnvironmentSetting environment)
 		{
+			this.EnvironmentSetting = environment;
 		}
 
 		private static readonly string _issueTrackingBackend = "issues.bloomlibrary.org";
 		private static readonly string _youTrackProjectKeyErrors = "BH";  // Or "SB" for Sandbox
 		private static readonly string _youTrackProjectKeyMissingFonts = "BH";  // Or "SB" for Sandbox
 
+		public EnvironmentSetting EnvironmentSetting { get; set; }
+
 		public bool Disabled { get; set; } // Should default to Not Disabled
 
 		private static YouTrackIssueConnector _instance;
 
 		// Singleton Instance
-		public static YouTrackIssueConnector Instance
+		public static YouTrackIssueConnector GetInstance(EnvironmentSetting environment)
 		{
-			get
-			{
-				if (_instance == null)
-					_instance = new YouTrackIssueConnector();
+			if (_instance == null || _instance.EnvironmentSetting != environment)
+				_instance = new YouTrackIssueConnector(environment);
 
-				return _instance;
-			}
+			return _instance;
 		}
+
 
 		private void ReportToYouTrack(string projectKey, string summary, string description, bool exitImmediately)
 		{
@@ -101,12 +102,12 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 			return youTrackIssueId;
 		}
 
-		public void ReportException(Exception exception, string additionalDescription, BookModel bookModel, EnvironmentSetting environment, bool exitImmediately = true)
+		public void ReportException(Exception exception, string additionalDescription, BookModel bookModel, bool exitImmediately = true)
 		{
-			string summary = $"[BH] [{environment}] Exception \"{exception.Message}\"";
+			string summary = $"[BH] [{this.EnvironmentSetting}] Exception \"{exception.Message}\"";
 			string description =
 				additionalDescription + "\n\n" +
-				GetDiagnosticInfo(bookModel, environment) + "\n\n" +
+				GetDiagnosticInfo(bookModel, this.EnvironmentSetting) + "\n\n" +
 				GetIssueDescriptionFromException(exception);
 
 			ReportToYouTrack(_youTrackProjectKeyErrors, summary, description, exitImmediately);
@@ -150,25 +151,25 @@ namespace BloomHarvester.WebLibraryIntegration   // Review: Could posisibly put 
 			return bldr.ToString();
 		}
 
-		public void ReportError(string errorSummary, string errorDescription, string errorDetails, EnvironmentSetting environment, BookModel bookModel = null)
+		public void ReportError(string errorSummary, string errorDescription, string errorDetails, BookModel bookModel = null)
 		{
-			string summary = $"[BH] [{environment}] Error: {errorSummary}";
+			string summary = $"[BH] [{this.EnvironmentSetting}] Error: {errorSummary}";
 
 			string description =
 				errorDescription + '\n' +
 				'\n' +
-				GetDiagnosticInfo(bookModel, environment) + '\n' +
+				GetDiagnosticInfo(bookModel, this.EnvironmentSetting) + '\n' +
 				errorDetails;
 
 			ReportToYouTrack(_youTrackProjectKeyErrors, summary, description, exitImmediately: false);
 		}
 
-		public void ReportMissingFont(string missingFontName, string harvesterId, EnvironmentSetting environment, BookModel bookModel = null)
+		public void ReportMissingFont(string missingFontName, string harvesterId, BookModel bookModel = null)
 		{
-			string summary = $"[BH] [{environment}] Missing Font: \"{missingFontName}\"";
+			string summary = $"[BH] [{this.EnvironmentSetting}] Missing Font: \"{missingFontName}\"";
 
 			string description = $"Missing font \"{missingFontName}\" on machine \"{harvesterId}\".\n\n";
-			description += GetDiagnosticInfo(bookModel, environment);
+			description += GetDiagnosticInfo(bookModel, this.EnvironmentSetting);
 
 			ReportToYouTrack(_youTrackProjectKeyMissingFonts, summary, description, exitImmediately: false);
 		}

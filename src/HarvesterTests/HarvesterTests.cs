@@ -426,6 +426,9 @@ namespace BloomHarvesterTests
 			{
 				// Test Setup
 				var book = new Book(new BookModel(), _logger);
+				book.SetHarvesterEvaluation("epub", true);
+				book.SetHarvesterEvaluation("bloomReader", true);
+				book.SetHarvesterEvaluation("readOnline", true);
 
 				// System under test				
 				harvester.ProcessOneBook(book);
@@ -435,6 +438,11 @@ namespace BloomHarvesterTests
 				var anyBloomCliErrors = logEntries.Any(x => x.Type == LogType.BloomCLIError);
 				Assert.That(anyBloomCliErrors, Is.True, "The relevant error type was not found");
 				Assert.That(book.Model.HarvestState, Is.EqualTo("Failed"), "HarvestState should be failed");
+
+				// Validate that the failure set the approvals to false.  (BL-8413)
+				Assert.That(book.Model.Show.epub.harvester.Value, Is.False);
+				Assert.That(book.Model.Show.bloomReader.harvester.Value, Is.False);
+				Assert.That(book.Model.Show.readOnline.harvester.Value, Is.False);
 
 				// Validate that the code did in fact attempt to report an error
 				_fakeIssueReporter.ReceivedWithAnyArgs().ReportError(default, default, default, default);

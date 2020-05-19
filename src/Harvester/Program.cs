@@ -6,7 +6,6 @@ using System.Text;
 using System.Threading.Tasks;
 using BloomHarvester.WebLibraryIntegration;
 using CommandLine;
-using Gecko;
 
 [assembly: InternalsVisibleTo("BloomHarvesterTests")]
 [assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]	// Needed for NSubstitute to create mock objects

@@ -476,9 +476,9 @@ namespace BloomHarvester
 			// If (!ForceAll) then add (inCirculation == true || inCirculation not set)
 			var inCirculation = "\"$or\":[{\"inCirculation\":true},{\"inCirculation\":{\"$exists\":false}}]";
 			// version X.Y => (HarvesterMajorVersion < X) || (HarvesterMajorVersion == X && HarvesterMinorVersion < Y) || (HarvesterMajorVersion doesn't exist)
-			var previousVersion = GetPreviousVersionFilterString(includeCurrentVersion: false);
+			var previousVersion = GetVersionFilterString(includeCurrentVersion: false);
 			// (the HarvesterMinorVersion <= Y for including the current version)
-			var previousOrCurrentVersion = GetPreviousVersionFilterString(includeCurrentVersion: true);
+			var previousOrCurrentVersion = GetVersionFilterString(includeCurrentVersion: true);
 			switch (_options.Mode)
 			{
 				case HarvestMode.ForceAll:
@@ -501,19 +501,20 @@ namespace BloomHarvester
 					break;
 				case HarvestMode.Default:
 				default:
-					// all books in circulation AND EITHER harvested by previous version of harvester OR state in [InProgress, Aborted]
-					whereOptimizationConditions.Add($"\"$or\":[{{{previousVersion}}},{{\"harvestState\":{{\"$in\":[\"InProgress\",\"Aborted\"]}}}}]");
+					// all books in circulation AND EITHER harvested by previous version of harvester OR state not in [Done, Failed]
+					whereOptimizationConditions.Add($"\"$or\":[{{{previousVersion}}},{{\"harvestState\":{{\"$nin\":[\"Done\",\"Failed\"]}}}}]");
 					whereOptimizationConditions.Add(inCirculation);
 					break;
 			}
 			return whereOptimizationConditions;
 		}
 
-		private string GetPreviousVersionFilterString(bool includeCurrentVersion)
+		private string GetVersionFilterString(bool includeCurrentVersion)
 		{
+			var versionComparison = includeCurrentVersion ? "$lte" : "$lt";
 			return "\"$or\":[" +
 	                     $"{{\"harvesterMajorVersion\":{{\"$lt\":{this.Version.Major}}}}}," +
-	                     $"{{\"harvesterMajorVersion\":{this.Version.Major},\"harvesterMinorVersion\":{{{(includeCurrentVersion?"$lte":"$lt")}:{this.Version.Minor}}}}}," +
+	                     $"{{\"harvesterMajorVersion\":{this.Version.Major},\"harvesterMinorVersion\":{{\"{versionComparison}\":{this.Version.Minor}}}}}," +
 	                     "{\"harvesterMajorVersion\":{\"$exists\":false}}" +
 	                     "]";
 		}

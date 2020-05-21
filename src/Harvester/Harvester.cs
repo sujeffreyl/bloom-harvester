@@ -231,15 +231,23 @@ namespace BloomHarvester
 			_logger.Dispose();
 		}
 
+		private string _uid;
+
 		/// <summary>
-		/// Uniquely identifies a Harvester, within a second
+		/// Uniquely identifies a Harvester with a Base64 encoded Guid.  We try to minimize
+		/// the length of this identifier to minimize its impact on the total path length.
+		/// This enables us to tell apart two Harvesters running on the same machine.
 		/// </summary>
 		public string GetUniqueIdentifier()
 		{
-			// Enables us to tell apart two Harvesters running on the same machine
-			// For now, we print out the date/time for ease of use when debugging/etc.
-			// If we need better uniqueness guarantees later, it's fine to use a GUID here instead.
-			return this.Identifier + _initTime.ToString("yyyyMMdd-HHmmss");
+			if (String.IsNullOrEmpty(_uid))
+			{
+				var guid = Guid.NewGuid();
+				// https://www.stevejgordon.co.uk/using-high-performance-dotnetcore-csharp-techniques-to-base64-encode-a-guid
+				// is an interesting article on optimizing this, but we don't do it enough to worry about optimizing.
+				_uid = Convert.ToBase64String(guid.ToByteArray()).Replace("/", "-").Replace("+", "_").Replace("=", "");
+			}
+			return _uid;
 		}
 
 		/// <summary>
@@ -1028,11 +1036,18 @@ namespace BloomHarvester
 
 			using (var folderForUnzipped = new TemporaryFolder(this.GetBloomDigitalArtifactsPath()))
 			{
-				using (var folderForZipped = new TemporaryFolder($"BloomHarvesterStaging-{this.GetUniqueIdentifier()}"))
+				using (var folderForZipped = new TemporaryFolder($"BHStaging-{this.GetUniqueIdentifier()}"))
 				{
 					var components = new S3UrlComponents(downloadUrl);
-					string zippedBloomDOutputPath = Path.Combine(folderForZipped.FolderPath, $"{components.BookTitle}.bloomd");
-					string epubOutputPath = Path.Combine(folderForZipped.FolderPath, $"{components.BookTitle}.epub");
+					// Add the book title as a subfolder to the path for unzipped so that Bloom can use its
+					// trick to disambiguate two HTML files in the folder by comparing the filename to the
+					// parent directory name.  (Having two HTML files in the uploaded book was one source
+					// of multiple Harvester errors.)
+					var bookTitleFileBasename = Bloom.Book.BookStorage.SanitizeNameForFileSystem(components.BookTitle);
+					var baseForUnzipped = Path.Combine(folderForUnzipped.FolderPath, bookTitleFileBasename);
+
+					string zippedBloomDOutputPath = Path.Combine(folderForZipped.FolderPath, $"{bookTitleFileBasename}.bloomd");
+					string epubOutputPath = Path.Combine(folderForZipped.FolderPath, $"{bookTitleFileBasename}.epub");
 					string thumbnailInfoPath = Path.Combine(folderForZipped.FolderPath, "thumbInfo.txt");
 					string perceptualHashInfoPath = Path.Combine(folderForZipped.FolderPath, "pHashInfo.txt");
 
@@ -1040,7 +1055,7 @@ namespace BloomHarvester
 					if (!_options.SkipUploadBloomDigitalArtifacts || !_options.SkipUpdateMetadata)
 					{
 						// Note: We need bloomDigitalOutputPath if we update metadata too, because making the bloomd is what generates our updated meta.json
-						bloomArguments += $" \"--bloomdOutputPath={zippedBloomDOutputPath}\" \"--bloomDigitalOutputPath={folderForUnzipped.FolderPath}\"";
+						bloomArguments += $" \"--bloomdOutputPath={zippedBloomDOutputPath}\" \"--bloomDigitalOutputPath={baseForUnzipped}\"";
 					}
 
 					if (!_options.SkipUploadEPub)
@@ -1092,7 +1107,7 @@ namespace BloomHarvester
 
 					if (success && !_options.SkipUploadBloomDigitalArtifacts)
 					{
-						string expectedIndexPath = Path.Combine(folderForUnzipped.FolderPath, "index.htm");
+						string expectedIndexPath = Path.Combine(baseForUnzipped, "index.htm");
 						if (!_fileIO.Exists(expectedIndexPath))
 						{
 							success = false;
@@ -1117,7 +1132,7 @@ namespace BloomHarvester
 
 						if (!_options.SkipUploadBloomDigitalArtifacts)
 						{
-							UploadBloomDigitalArtifacts(zippedBloomDOutputPath, folderForUnzipped.FolderPath, s3FolderLocation);
+							UploadBloomDigitalArtifacts(zippedBloomDOutputPath, baseForUnzipped, s3FolderLocation);
 						}
 
 						if (!_options.SkipUploadEPub)
@@ -1137,7 +1152,7 @@ namespace BloomHarvester
 
 						if (!_options.SkipUpdateMetadata)
 						{
-							book.UpdateMetadataIfNeeded(folderForUnzipped.FolderPath);
+							book.UpdateMetadataIfNeeded(baseForUnzipped);
 						}
 					}
 				}
@@ -1162,7 +1177,7 @@ namespace BloomHarvester
 		internal string GetBookCollectionPath()
 		{
 			// Note: If there are multiple instances of the Harvester processing the same environment,
-			//       and they both process the same book, they will attempt to downlaod to the same path, which will probably be bad.
+			//       and they both process the same book, they will attempt to download to the same path, which will probably be bad.
 			//       But for now, the benefit of having each run download into a predictable location (allows caching when enabled)
 			//       seems to outweigh the cost (since we don't normally run multiple instances w/the same env on same machine)
 			return Path.Combine(GetRootPath(), Path.Combine("BloomHarvester", this.Identifier));
@@ -1170,7 +1185,7 @@ namespace BloomHarvester
 
 		internal string GetBloomDigitalArtifactsPath()
 		{
-			return $"BloomHarvesterStagingUnzipped-{this.GetUniqueIdentifier()}";
+			return $"BHUnzipped-{this.GetUniqueIdentifier()}";
 		}
 
 		/// <summary>

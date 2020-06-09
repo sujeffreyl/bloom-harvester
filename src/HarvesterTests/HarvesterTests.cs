@@ -638,6 +638,90 @@ namespace BloomHarvesterTests
 		}
 
 		[Test]
+		public void ProcessOneBook_MissingFont_UpdatesWhatItCanAnyway()
+		{
+			var options = GetHarvesterOptionsForProcessOneBookTests();
+
+			// Stub setup
+			var missingFonts = new List<string>();
+			missingFonts.Add("madeUpFontName");
+			var fakeFontChecker = Substitute.For<IFontChecker>();
+			fakeFontChecker.Configure().GetMissingFonts(default, out bool success)
+				.ReturnsForAnyArgs(args =>
+				{
+					args[1] = true;	// Report success
+					return missingFonts;
+				});
+			var fakeFileIO = Substitute.For<IFileIO>();
+
+			using (var harvester = GetSubstituteHarvester(options, fontChecker: fakeFontChecker, fileIO:fakeFileIO))
+			{
+				// Test Setup
+				var book = BookTests.CreateDefaultBook(fakeFileIO);
+				ConfigureForFakeIndexHtmFile(harvester, book.Model.Title);
+
+				string thumbInfoPath = Path.Combine(Path.GetTempPath(), $"BHStaging-{harvester.GetUniqueIdentifier()}", "thumbInfo.txt");
+				fakeFileIO.Configure().Exists(thumbInfoPath).Returns(true);
+
+				string bookFolder = Path.Combine(harvester.GetBookCollectionPath(), BookModelTests.kDefaultTitle);
+				string[] thumbnailPaths = new string[]
+				{
+					Path.Combine(bookFolder, "thumbnail-256.png"),
+					Path.Combine(bookFolder, "thumbnail-70.png"),
+					Path.Combine(bookFolder, "thumbnail-300x300.png"),
+				};
+				fakeFileIO.Configure().ReadAllLines(thumbInfoPath).Returns(thumbnailPaths);
+				foreach (var thumbnailPath in thumbnailPaths)
+				{
+					fakeFileIO.Configure().Exists(thumbnailPath).Returns(true);
+				}
+
+				var phashPath = Path.Combine(Path.GetTempPath(), $"BHStaging-{harvester.GetUniqueIdentifier()}", "pHashInfo.txt");
+				fakeFileIO.Configure().Exists(phashPath).Returns(true);
+				fakeFileIO.Configure().ReadAllText(phashPath).Returns("0x12345678");
+
+				// System under test
+				harvester.ProcessOneBook(book);
+
+				// Validate
+				var logEntries = book.Model.GetValidLogEntries();
+				var anyRelevantErrors = logEntries.Any(x => x.Type == LogType.MissingFont && x.Level == LogLevel.Error);
+				Assert.That(anyRelevantErrors, Is.True, "The relevant error type was not found");
+				Assert.That(book.Model.HarvestState, Is.EqualTo("Failed"), "HarvestState should be failed");
+
+				// Just double-check that our font checker stub did actually get called
+				fakeFontChecker.ReceivedWithAnyArgs().GetMissingFonts(default, out _);
+
+				// Validate that the code did in fact attempt to report an error
+				_fakeIssueReporter.Received().ReportMissingFont("madeUpFontName", "UnitTestHarvester", book.Model);
+
+				// Verify it attempted to upload the thumbnails
+				foreach (var thumbnailPath in thumbnailPaths)
+				{
+					_fakeS3UploadClient.Received(1).UploadFile(thumbnailPath, "fakeUploader@gmail.com/FakeGuid/thumbnails", "max-age=31536000");
+				}
+
+				// Verify the show field (set by thumbnail "success")
+				var show = (JObject)(book.Model.Show);
+				var isFound = show.TryGetValue("social", out JToken socialShowInfo);
+				Assert.That(isFound, Is.True, "\"social\" show info should exist");
+
+				((JObject)socialShowInfo).TryGetValue("harvester", out JToken socialShowInfoSetByHarvester);
+				Assert.That(socialShowInfoSetByHarvester.Value<bool>(), Is.True, "\"social\" show info should both exist and be set to true");
+
+				// Verify the phash field
+				Assert.That(book.Model.PHashOfFirstContentImage, Is.EqualTo("0x12345678"), "phash should be set to expected value");
+
+				_fakeParseClient.ReceivedWithAnyArgs(2).UpdateObject("books", "FakeObjectId", "...");
+
+				// This may be too fragile to keep.  It's a pity there isn't a way to get the arguments back to check inside them instead of only exact matching...
+				var updateJson = "{\"harvestState\":\"Failed\",\"harvestLog\":[\"Error: MissingFont - madeUpFontName\"],\"phashOfFirstContentImage\":\"0x12345678\",\"show\":{\"social\":{\"harvester\":true}},\"updateSource\":\"bloomHarvester\"}";
+				_fakeParseClient.Received(1).UpdateObject("books", "FakeObjectId", updateJson);
+			}
+		}
+
+
+		[Test]
 		public void ProcessOneBook_NormalConditions_DirectoriesCleanedBeforeUpload()
 		{
 			// Setup
@@ -710,7 +794,7 @@ namespace BloomHarvesterTests
 			{
 				string baseUrl = "https://s3.amazonaws.com/FakeBucket/fakeUploader%40gmail.com%2fFakeGuid%2fFakeTitle%2f";
 				var bookModel = new BookModel(baseUrl: baseUrl, title: "FakeTitle") {ObjectId = "123456789"};
-				var book = new Book(bookModel, logger);
+				var book = new Book(bookModel, logger, _fakeFileIO);
 				ConfigureForFakeIndexHtmFile(harvester, book.Model.Title);
 
 				// System under test
@@ -753,7 +837,7 @@ namespace BloomHarvesterTests
 			{
 				string baseUrl = "https://s3.amazonaws.com/FakeBucket/fakeUploader%40gmail.com%2fFakeGuid%2fFakeTitle%2f";
 				var bookModel = new BookModel(baseUrl: baseUrl, title: "FakeTitle") {ObjectId = "123456789"};
-				var book = new Book(bookModel, logger);
+				var book = new Book(bookModel, logger, _fakeFileIO);
 				ConfigureForFakeIndexHtmFile(harvester, book.Model.Title);
 
 				// System under test
@@ -945,7 +1029,7 @@ namespace BloomHarvesterTests
 
 			string baseUrl = $"https://s3.amazonaws.com/FakeBucket/fakeUploader%40gmail.com%2fFakeGuid%2fTest+Title+w+Slash{titleSuffix}%2f";
 			var bookModel = new BookModel(baseUrl, title + titleSuffix, lastUploaded: lastUploadedDate) { HarvestStartedAt = lastHarvestedDate } ;
-			var book = new Book(bookModel, _logger);
+			var book = new Book(bookModel, _logger, _fakeFileIO);
 			return book;
 		}
 

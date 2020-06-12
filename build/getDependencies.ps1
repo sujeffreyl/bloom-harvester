@@ -31,6 +31,7 @@ If ($clean) {
 ForEach ($folder in $folders) {
     Write-Host "Copying to $($folder)"
 
+    New-Item -ItemType Directory -Force -Path "$($folder)" | Out-Null
     Copy-Item "$($dependenciesDir)\bin\Release\*" -Destination "$($folder)\" -Force
     Copy-Item "$($folder)\BloomAlpha.exe" -Destination "$($folder)\Bloom.exe" -Force
 

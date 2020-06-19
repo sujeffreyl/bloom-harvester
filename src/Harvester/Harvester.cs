@@ -14,6 +14,7 @@ using BloomHarvester.Parse;
 using BloomHarvester.Parse.Model;
 using BloomHarvester.WebLibraryIntegration;
 using BloomTemp;
+using SIL.IO;
 
 
 namespace BloomHarvester
@@ -569,6 +570,7 @@ namespace BloomHarvester
 		internal bool ProcessOneBook(Book book)
 		{
 			bool isSuccessful = true;
+			string collectionBookDir = null;
 			try
 			{
 				string message = $"Processing: {book.Model.BaseUrl}";
@@ -594,35 +596,10 @@ namespace BloomHarvester
 
 				// Download the book
 				string decodedUrl = HttpUtility.UrlDecode(book.Model.BaseUrl);
-				var urlComponents = new S3UrlComponents(decodedUrl);
-
-				// Note: Make sure you use the title as it appears on the filesystem.
-				// It may differ from the title in the Parse DB if the title contains punctuation which are not valid in filepaths.
-				string downloadBookDir = Path.Combine(this.GetBookCollectionPath(), urlComponents.BookTitle);
-				bool canUseExisting = TryUseExistingBookDownload(originalBookModel, downloadBookDir);
-
-				if (canUseExisting)
-				{
-					_logger.TrackEvent("Using Cached Book");
-				}
-				else
-				{
-					_logger.TrackEvent("Download Book");
-
-					// Check on how we're doing on disk space
-					_diskSpaceManager?.CleanupIfNeeded();
-
-					// FYI, there's no need to delete this book folder first.
-					// _transfer.HandleDownloadWithoutProgress() removes outdated content for us.
-
-					string urlWithoutTitle = RemoveBookTitleFromBaseUrl(decodedUrl);
-					string downloadRootDir = GetBookCollectionPath();
-					Bloom.Program.RunningHarvesterMode = true;  // HandleDownloadWithoutProgress has a nested subcall to BloomS3Client.cs::AvoidThisFile() which looks at HarvesterMode
-					downloadBookDir = _transfer.HandleDownloadWithoutProgress(urlWithoutTitle, downloadRootDir);
-				}
+				collectionBookDir = DownloadBookAndCopyToCollectionFolder(book, decodedUrl, originalBookModel);
 
 				// Process the book
-				List<LogEntry> harvestLogEntries = CheckForMissingFontErrors(downloadBookDir, book);
+				List<LogEntry> harvestLogEntries = CheckForMissingFontErrors(collectionBookDir, book);
 				bool anyFontsMissing = harvestLogEntries.Any();
 				isSuccessful &= !anyFontsMissing;
 				if (anyFontsMissing)
@@ -637,13 +614,14 @@ namespace BloomHarvester
 
 				if (!_options.ReadOnly)
 				{
-					var analyzer = GetAnalyzer(downloadBookDir);
-					var collectionFilePath = analyzer.WriteBloomCollection(downloadBookDir);
+					var analyzer = GetAnalyzer(collectionBookDir);
+					var collectionFilePath = analyzer.WriteBloomCollection(collectionBookDir);
 					book.Analyzer = analyzer;
 
-					isSuccessful &= CreateArtifacts(decodedUrl, downloadBookDir, collectionFilePath, book, harvestLogEntries);
+					isSuccessful &= CreateArtifacts(decodedUrl, collectionBookDir, collectionFilePath, book,
+						harvestLogEntries);
 					// If not successful, update artifact suitability to say all false. (BL-8413)
-					UpdateSuitabilityofArtifacts(book, analyzer, isSuccessful);
+					UpdateSuitabilityOfArtifacts(book, analyzer, isSuccessful);
 
 					book.SetTags();
 				}
@@ -708,8 +686,66 @@ namespace BloomHarvester
 					}
 				}
 			}
+			finally
+			{
+				// clean up after ourselves: we only need to preserve the copy in the download cache folder.
+				if (Directory.Exists(collectionBookDir))
+					Directory.Delete(collectionBookDir, true);
+			}
 
 			return isSuccessful;
+		}
+
+		/// <summary>
+		/// Download the book if necessary, ensuring that it ends up in a unique folder in the cache
+		/// folder.  Then copy the book folder to the collection folder under the book's title.
+		/// </summary>
+		/// <returns>file path of the book's folder in the collection folder</returns>
+		private string DownloadBookAndCopyToCollectionFolder(Book book, string decodedUrl, BookModel originalBookModel)
+		{
+			var urlComponents = new S3UrlComponents(decodedUrl);
+
+			// The download/cache folder must use unique names for books to avoid collisions.  The book's
+			// objectId seems like as good as a choice as any.  Titles certainly aren't unique!
+			string downloadBookDir = Path.Combine(this.GetBookCacheFolder(), book.Model.ObjectId);
+			// Note: Make sure you use the title as it appears on the filesystem.
+			// It may differ from the title in the Parse DB if the title contains punctuation which are not valid in file paths.
+			var collectionBookDir = Path.Combine(this.GetBookCollectionPath(), urlComponents.BookTitle);
+			bool canUseExisting = TryUseExistingBookDownload(originalBookModel, downloadBookDir);
+
+			if (canUseExisting)
+			{
+				_logger.TrackEvent("Using Cached Book");
+			}
+			else
+			{
+				_logger.TrackEvent("Download Book");
+
+				// Check on how we're doing on disk space
+				_diskSpaceManager?.CleanupIfNeeded();
+
+				// FYI, there's no need to delete this book folder first.
+				// _transfer.HandleDownloadWithoutProgress() removes outdated content for us.
+				string urlWithoutTitle = RemoveBookTitleFromBaseUrl(decodedUrl);
+				string downloadRootDir = GetBookCacheFolder();
+				// HandleDownloadWithoutProgress has a nested subcall to BloomS3Client.cs::AvoidThisFile() which looks at HarvesterMode
+				Bloom.Program.RunningHarvesterMode = true;
+				var downloadedDir = _transfer.HandleDownloadWithoutProgress(urlWithoutTitle, downloadRootDir);
+				// The download process appears to inherently use the book's title, so we need
+				// to rename the folder to what we want for caching purposes.
+				if (downloadedDir != downloadBookDir)
+				{
+					if (Directory.Exists(downloadBookDir))
+						Directory.Delete(downloadBookDir, true);
+					Directory.Move(downloadedDir, downloadBookDir);
+				}
+			}
+			// Copy the book's folder from the cache location to the collection folder.
+			Directory.CreateDirectory(GetBookCollectionPath());
+			if (Directory.Exists(collectionBookDir))
+				Directory.Delete(collectionBookDir, true); // best to be safe...
+			DirectoryHelper.Copy(downloadBookDir, collectionBookDir, true);
+			return collectionBookDir;
 		}
 
 		private void SetFailedState(Book book)
@@ -764,12 +800,12 @@ namespace BloomHarvester
 			return Directory.Exists(pathToCheck);
 		}
 
-		internal virtual IBookAnalyzer GetAnalyzer(string downloadBookDir)
+		internal virtual IBookAnalyzer GetAnalyzer(string collectionBookDir)
 		{
-			return BookAnalyzer.FromFolder(downloadBookDir);
+			return BookAnalyzer.FromFolder(collectionBookDir);
 		}
 
-		private void UpdateSuitabilityofArtifacts(Book book, IBookAnalyzer analyzer, bool isSuccessful)
+		private void UpdateSuitabilityOfArtifacts(Book book, IBookAnalyzer analyzer, bool isSuccessful)
 		{
 			if (!_options.SkipUploadEPub)
 			{
@@ -1046,7 +1082,7 @@ namespace BloomHarvester
 			return harvestLogEntries;
 		}
 
-		private bool CreateArtifacts(string downloadUrl, string downloadBookDir, string collectionFilePath, Book book, List<LogEntry> harvestLogEntries)
+		private bool CreateArtifacts(string downloadUrl, string collectionBookDir, string collectionFilePath, Book book, List<LogEntry> harvestLogEntries)
 		{
 			Debug.Assert(book != null, "CreateArtifacts(): book expected to be non-null");
 			Debug.Assert(harvestLogEntries != null, "CreateArtifacts(): harvestLogEntries expected to be non-null");
@@ -1070,7 +1106,7 @@ namespace BloomHarvester
 					string thumbnailInfoPath = Path.Combine(folderForZipped.FolderPath, "thumbInfo.txt");
 					string perceptualHashInfoPath = Path.Combine(folderForZipped.FolderPath, "pHashInfo.txt");
 
-					string bloomArguments = $"createArtifacts \"--bookPath={downloadBookDir}\" \"--collectionPath={collectionFilePath}\"";
+					string bloomArguments = $"createArtifacts \"--bookPath={collectionBookDir}\" \"--collectionPath={collectionFilePath}\"";
 					if (!_options.SkipUploadBloomDigitalArtifacts || !_options.SkipUpdateMetadata)
 					{
 						// Note: We need bloomDigitalOutputPath if we update metadata too, because making the bloomd is what generates our updated meta.json
@@ -1195,11 +1231,18 @@ namespace BloomHarvester
 
 		internal string GetBookCollectionPath()
 		{
+			// Note: This has the same problems as the next method for running multiple instances of
+			// Harvester at the same time on the same computer.
+			return Path.Combine(GetRootPath(), "BloomHarvester", "Collection", this.Identifier);
+		}
+
+		internal string GetBookCacheFolder()
+		{
 			// Note: If there are multiple instances of the Harvester processing the same environment,
 			//       and they both process the same book, they will attempt to download to the same path, which will probably be bad.
 			//       But for now, the benefit of having each run download into a predictable location (allows caching when enabled)
 			//       seems to outweigh the cost (since we don't normally run multiple instances w/the same env on same machine)
-			return Path.Combine(GetRootPath(), Path.Combine("BloomHarvester", this.Identifier));
+			return Path.Combine(GetRootPath(), "BloomHarvester", this.Identifier);
 		}
 
 		internal string GetBloomDigitalArtifactsPath()

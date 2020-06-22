@@ -34,6 +34,7 @@ ForEach ($folder in $folders) {
     New-Item -ItemType Directory -Force -Path "$($folder)" | Out-Null
     Copy-Item "$($dependenciesDir)\bin\Release\*" -Destination "$($folder)\" -Force
     Copy-Item "$($folder)\BloomAlpha.exe" -Destination "$($folder)\Bloom.exe" -Force
+	Copy-Item "$($folder)\BloomAlpha.exe.config" -Destination "$($folder)\Bloom.exe.config" -Force
 
     New-Item -ItemType Directory -Force -Path "$($folder)\Firefox" | Out-Null
     Copy-Item "$($dependenciesDir)\bin\Release\Firefox\*" -Destination "$($folder)\Firefox\" -Force

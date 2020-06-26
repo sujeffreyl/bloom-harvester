@@ -1246,13 +1246,39 @@ namespace BloomHarvester
 			return new HarvesterDriveInfo(driveInfo);
 		}
 
-		private static string GetRootPath() => Path.GetTempPath();
+		private static string GetRootPath()
+		{
+			string path = Environment.GetEnvironmentVariable("BloomHarvesterCacheRootPath");
+			if (!string.IsNullOrEmpty(path))
+			{
+				if (!Directory.Exists(path))
+				{
+					try
+					{
+						Directory.CreateDirectory(path);
+					}
+					catch (Exception e)
+					{
+						Debug.WriteLine($"Cannot create {path} because {e}");
+					}
+				}
+				if (Directory.Exists(path))
+					return path;
+			}
+			// If no special setting, try for the user's local application directory as the root.
+			path = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+			if (!String.IsNullOrEmpty(path) && Directory.Exists(path))
+				return path;
+			// If our attempt to find the user's home directory failed, use the temp directory,
+			// assuming that the .Net/mono runtime knows how to return a good value for this.
+			return Path.GetTempPath();
+		}
 
 		internal string GetBookCollectionPath()
 		{
 			// Note: This has the same problems as the next method for running multiple instances of
 			// Harvester at the same time on the same computer.
-			return Path.Combine(GetRootPath(), "BloomHarvester", "Collection", this.Identifier);
+			return Path.Combine(Path.GetTempPath(), "BloomHarvester", "Collection", this.Identifier);
 		}
 
 		internal string GetBookCacheFolder()

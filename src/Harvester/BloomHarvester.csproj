@@ -24,9 +24,8 @@
 		<PackageReference Include="CoenM.ImageSharp.ImageHash" Version="1.0.0-beta0004" />
 		<PackageReference Include="CommandLineParser" Version="2.8.0" />
 		<PackageReference Include="DesktopAnalytics" Version="1.2.4.11" />
-		<PackageReference Include="DialogAdapters" Version="0.1.11" />
 		<PackageReference Include="EasyHttp" Version="1.7.0" />
-		<PackageReference Include="L10NSharp" Version="4.1.0-beta0047" />
+		<PackageReference Include="L10NSharp" Version="4.1.0-beta0036" />
 		<PackageReference Include="Microsoft.ApplicationInsights.TraceListener" Version="2.10.0" />
 		<PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
 		<PackageReference Include="RestSharp" Version="106.11.7" />
